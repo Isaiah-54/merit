@@ -38,16 +38,25 @@ async function loadMerit() {
       el("kitList").innerHTML = ""; el("lendPanel").innerHTML = "";
       return;
     }
-    // No token chosen in the link: open the demo Merit, merit-2, by
-    // default instead of leaving the visitor on the first token.
-    const def = meritTokensCache.find((t) => t.token_id === "merit-2") || meritTokensCache[0];
+    // No token chosen in the link: open the visitor's own first
+    // Merit when they are connected and own one, otherwise the demo
+    // Merit, merit-2, instead of leaving them on the first token.
+    const own = walletAccountId ? meritTokensCache.filter((t) => t.owner_id === walletAccountId) : [];
+    const def = (own.length ? own[0] : null) || meritTokensCache.find((t) => t.token_id === "merit-2") || meritTokensCache[0];
     TOKEN_ID = def.token_id;
   }
   if (picker) {
-    picker.innerHTML = meritTokensCache.length
-      ? "<div class=\"merit-switch\"><span class=\"muted small\"><strong>Viewing:</strong></span>" + meritTokensCache.map((t) =>
+    // The switcher is My Merits: only the Merits the connected
+    // wallet owns. A visitor who has not connected sees every Merit
+    // as a public showcase instead.
+    const ownTokens = walletAccountId ? meritTokensCache.filter((t) => t.owner_id === walletAccountId) : meritTokensCache;
+    const label = walletAccountId ? "My Merits:" : "Viewing:";
+    picker.innerHTML = ownTokens.length
+      ? "<div class=\"merit-switch\"><span class=\"muted small\"><strong>" + escapeHtml(label) + "</strong></span>" + ownTokens.map((t) =>
           "<a class=\"chip" + (t.token_id === TOKEN_ID ? " active" : "") + "\" href=\"merit.html?id=" + encodeURIComponent(t.token_id) + "\">" + escapeHtml(t.token_id) + "</a>").join("") + "</div>"
-      : "";
+      : (walletAccountId
+          ? "<div class=\"merit-switch\"><span class=\"muted small\"><strong>My Merits:</strong> none yet. <a href=\"mint.html\">Mint one</a>.</span></div>"
+          : "");
   }
   document.getElementById("meritTitle").textContent = TOKEN_ID;
   try {
