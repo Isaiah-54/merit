@@ -6,6 +6,9 @@ const params = new URLSearchParams(window.location.search);
 let TOKEN_ID = params.get("id") || "";
 let meritData = null;
 let meritTokensCache = [];
+// Owner of the Merit currently shown. Set when the Merit loads; the
+// withdraw actions check it so a non-owner never gets a wallet prompt.
+let MERIT_OWNER = null;
 
 function meritAccountId() {
   return TOKEN_ID + "." + window.CONTRACT_ID;
@@ -50,6 +53,7 @@ async function loadMerit() {
   try {
     const m = await view("get_merit", { token_id: TOKEN_ID });
     meritData = m;
+    MERIT_OWNER = m.owner_id || null;
     const locked = !!m.locked;
     const level = m.level != null ? m.level : 0;
     const tok = meritTokensCache.find((t) => t.token_id === TOKEN_ID);
@@ -113,12 +117,17 @@ async function loadMerit() {
         }
       }
     } catch (_) { /* storage unavailable */ }
+    const isOwner = Boolean(walletAccountId) && Boolean(m.owner_id) && walletAccountId === m.owner_id;
     let panelHtml = confirmHtml +
       "<div class=\"balance-hero\"><div class=\"balance-hero-label\">Sub-account balance</div>" +
       "<div class=\"balance-hero-num\">" + escapeHtml(subBalText) + "</div>" +
       "<div class=\"balance-hero-sub\">Your Merit's own NEAR account: <span class=\"mono\">" + escapeHtml(meritAccountId()) + "</span></div></div>";
     if (withdrawable > 0n) {
-      panelHtml += "<p><button type=\"button\" class=\"btn withdraw-hero-btn\" id=\"withdrawAllBtn\">Withdraw " + escapeHtml(fmtYocto(m.balance_withdrawable)) + " NEAR to your wallet</button></p>";
+      if (isOwner) {
+        panelHtml += "<p><button type=\"button\" class=\"btn withdraw-hero-btn\" id=\"withdrawAllBtn\">Withdraw " + escapeHtml(fmtYocto(m.balance_withdrawable)) + " NEAR to your wallet</button></p>";
+      } else {
+        panelHtml += "<p class=\"muted small\">Only the owner of this Merit (" + escapeHtml(m.owner_id || "") + ") can withdraw. The money goes to the owner, never to anyone else.</p>";
+      }
     }
     panelHtml +=
       "<div class=\"kv\"><span>Withdrawable (95% of job payments)</span><b>" + escapeHtml(fmtYocto(m.balance_withdrawable || "0")) + " NEAR</b></div>" +
@@ -130,6 +139,13 @@ async function loadMerit() {
     el("balancePanel").innerHTML = panelHtml;
     const wab = el("withdrawAllBtn");
     if (wab) wab.addEventListener("click", () => withdrawAll(withdrawable, wab));
+    // The withdraw form is owner-only too. Hide the whole section
+    // for a viewer who is not the owner, instead of destroying it:
+    // the form's submit listener is attached once at script load,
+    // so replacing the section's HTML would lose it. The balance
+    // panel above already names the owner for non-owners.
+    const ws = el("withdrawSection");
+    if (ws) ws.style.display = isOwner ? "" : "none";
 
     const kit = m.kit || [];
     const kitIntro = "<p class=\"muted small\" style=\"margin-top:0\">The tools this Merit carries. Each tool is a named NFT tied to a credential the Merit holds, kept inside the Merit so the holder always has the right tool for the work its stamps unlock.</p>";
@@ -174,16 +190,19 @@ async function loadMerit() {
 // One primary next step, chosen from the Merit's own state:
 // withdrawable balance first, then a blank Merit, then a stamped
 // Merit that can take a job. Only one CTA, the right one.
+// The withdraw step is owner-only: a viewer who is not the owner
+// never sees a Withdraw button, because only the owner can withdraw.
 function renderNextStep(m) {
   const wrap = el("nextStep");
   if (!wrap) return;
   const stamps = Array.isArray(m.stamps) ? m.stamps : [];
   const withdrawable = BigInt(m.balance_withdrawable || "0");
+  const isOwner = Boolean(walletAccountId) && Boolean(m.owner_id) && walletAccountId === m.owner_id;
   let num = "1";
   let label = "Next step";
   let text = "";
   let action = "";
-  if (withdrawable > 0n) {
+  if (withdrawable > 0n && isOwner) {
     num = "6";
     label = "Next step: get paid out";
     text = "Your Merit earned " + fmtYocto(m.balance_withdrawable) + " NEAR. Withdraw it to your wallet.";
@@ -206,7 +225,7 @@ function renderNextStep(m) {
     action + "</div></div>";
   const btn = el("nextStepBtn");
   if (!btn) return;
-  if (withdrawable > 0n) {
+  if (withdrawable > 0n && isOwner) {
     btn.addEventListener("click", () => withdrawAll(withdrawable, btn));
   } else if (stamps.length === 0) {
     btn.addEventListener("click", () => {
@@ -221,9 +240,11 @@ function renderNextStep(m) {
 // Withdraw the whole withdrawable balance in one tap. The
 // confirmation is recorded before the wallet call so it survives
 // the wallet redirect, and shown only when the wallet returns with
-// a transaction hash.
+// a transaction hash. Owner-only: the contract rejects any other
+// caller, and this check stops it before a wallet prompt.
 async function withdrawAll(amount, btn) {
   if (!needWallet()) return;
+  if (MERIT_OWNER && walletAccountId !== MERIT_OWNER) { pageStatus("Only the owner of this Merit can withdraw."); return; }
   try { sessionStorage.setItem("merit-withdraw-confirm", fmtYocto(amount)); } catch (_) { /* storage unavailable */ }
   await sendWithPending(btn, "Sending withdraw. Confirm in your wallet.",
     "withdraw", { token_id: TOKEN_ID, amount: amount.toString() }, "0");
@@ -252,6 +273,7 @@ async function sendWithPending(btn, statusText, method, args, depositYocto, gas)
 document.getElementById("withdrawForm").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   if (!needWallet()) return;
+  if (MERIT_OWNER && walletAccountId !== MERIT_OWNER) { pageStatus("Only the owner of this Merit can withdraw."); return; }
   let amount;
   try { amount = nearToYocto(el("withdrawAmount").value); } catch (e) { pageStatus(e.message); return; }
   if (amount <= 0n) { pageStatus("Enter an amount above zero."); return; }
@@ -316,5 +338,5 @@ document.getElementById("testForm").addEventListener("submit", async (ev) => {
     "pass_test", { token_id: TOKEN_ID, answer: answer }, "0");
 });
 
-window.meritWalletChanged = function () { /* detail does not depend on the wallet */ };
+window.meritWalletChanged = function () { loadMerit(); };
 loadMerit();

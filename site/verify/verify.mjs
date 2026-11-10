@@ -314,6 +314,12 @@ async function main() {
     // ---------- Merit detail ----------
     await page.goto(BASE + "/merit.html?id=merit-1", { waitUntil: "networkidle0" });
     await sleep(900);
+    // The withdraw UI is owner-only, so set the wallet to merit-1's
+    // owner (alice.testnet) after the page loads. Setting the wallet
+    // fires the wallet-change handler, which re-renders the page
+    // with the owner-only withdraw button, form and next-step CTA.
+    await setWalletStub("alice.testnet");
+    await sleep(900);
     t = await text();
     check("detail shows level 3", t.includes("Level"));
     check("detail shows stamp skill and issuer name", t.includes("welding") && t.includes("Merit DAO"));

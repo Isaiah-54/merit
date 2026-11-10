@@ -447,8 +447,11 @@ function badgeLevelLine(skill, level) {
 
 // Test hook used by the headless verifier only: lets the verifier set a
 // connected account and capture the exact call a form builds, without a
-// real wallet. Never used by the site itself.
+// real wallet. Never used by the site itself. Setting the wallet here
+// also fires walletChanged, exactly like a real connect, so pages that
+// re-render on wallet change (for example the Merit detail page showing
+// owner-only withdraw UI) update the same way they do for a real user.
 window.__meritTest = {
-  setWallet: function (id) { walletAccountId = id; refreshWalletBtn(); },
+  setWallet: function (id) { walletAccountId = id; refreshWalletBtn(); walletChanged(); },
   getWallet: function () { return walletAccountId; },
 };
