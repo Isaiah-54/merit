@@ -717,6 +717,23 @@ async function main() {
     check("confirm completion button shown to the poster",
       posterGate.has && posterGate.text === "Confirm completion" && posterGate.disabled === false && posterGate.line,
       JSON.stringify(posterGate));
+    // The taken card never runs the acceptance gate: typing the
+    // worker's Merit id must not flash a refusal, even though the
+    // poster is not the worker and can_access says no for them
+    // (the gate already passed at accept time, and complete_job is
+    // poster-only). The input is labelled for the worker's Merit.
+    await disputeCard.$eval(".acceptMerit", (el) => { el.value = "merit-1"; el.dispatchEvent(new Event("input", { bubbles: true })); });
+    await sleep(900);
+    const progressMsg = await disputeCard.$eval(".jobMsg", (el) => el.textContent);
+    check("progress card typing the worker Merit shows no gate refusal",
+      !progressMsg.includes("Refused") && !progressMsg.includes("does not hold the required stamp"), progressMsg);
+    const progressLabel = await disputeCard.evaluate((card) => {
+      const inp = card.querySelector(".acceptMerit");
+      const lab = inp ? inp.previousElementSibling : null;
+      return lab && lab.tagName === "LABEL" ? lab.textContent.trim() : "";
+    });
+    check("progress card asks for the worker's Merit token id",
+      progressLabel === "Worker's Merit token id", progressLabel);
     // The poster confirming builds complete_job with the job id and
     // the Merit token id, and the status shows the hash and next step.
     await disputeCard.$eval(".acceptMerit", (el) => { el.value = "merit-1"; });

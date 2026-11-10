@@ -459,6 +459,17 @@ function wireJobCard(card, job) {
   // the worker has no input and no complete button, so the gate
   // check and the take and complete actions are skipped below,
   // while evidence and the rest still wire up.
+  // The acceptance gate belongs only on open-offer cards, before
+  // Take job. On a taken card the gate already passed at accept
+  // time, and complete_job is poster-only, so running the gate
+  // there can only flash a wrong refusal: the poster is not the
+  // worker, so can_access says no for them even when the worker's
+  // Merit holds the stamp. The timer and the flag below guard
+  // that: completing a job stops any pending or in-flight gate
+  // check from writing over the completion result.
+  let gateTimer = null;
+  let gateDone = false;
+  const isOfferCard = !!(card.querySelector(".checkBtn") || card.querySelector(".acceptBtn"));
   const showRefusal = (tokenId, gate) => {
     let why;
     if (gate.blank) {
@@ -488,27 +499,30 @@ function wireJobCard(card, job) {
     msg.innerHTML = "<p class=\"muted loading\">Checking the Merit's stamps onchain…</p>";
     try {
       const gate = await checkGate(tokenId, job);
+      if (gateDone) return null;
       renderGateOutcome(tokenId, gate);
       return gate;
     } catch (e) {
+      if (gateDone) return null;
       msg.textContent = "Could not check access. " + (e.message || String(e));
       return null;
     }
   };
   // Instant gate: typing a Merit id checks it after a short pause,
-  // so the outcome shows without tapping anything.
-  if (input && msg) {
-  let gateTimer = null;
-  input.addEventListener("input", () => {
-    const tokenId = input.value.trim();
-    clearTimeout(gateTimer);
-    if (!tokenId) {
-      msg.textContent = "";
-      card.classList.remove("gate-open", "gate-closed");
-      return;
-    }
-    gateTimer = setTimeout(() => { runGateCheck(tokenId); }, 600);
-  });
+  // so the outcome shows without tapping anything. Offer cards
+  // only: a taken card's input takes the worker's Merit id for
+  // Confirm completion, and the gate must never run there.
+  if (input && msg && isOfferCard) {
+    input.addEventListener("input", () => {
+      const tokenId = input.value.trim();
+      clearTimeout(gateTimer);
+      if (!tokenId) {
+        msg.textContent = "";
+        card.classList.remove("gate-open", "gate-closed");
+        return;
+      }
+      gateTimer = setTimeout(() => { runGateCheck(tokenId); }, 600);
+    });
   }
   const checkBtn = card.querySelector(".checkBtn");
   if (checkBtn && input && msg) checkBtn.addEventListener("click", async () => {
@@ -551,6 +565,10 @@ function wireJobCard(card, job) {
     if (!walletAccountId) { pageStatus("Connect your wallet first."); return; }
     if (!tokenId) { msg.textContent = "Enter a Merit token id first."; return; }
     completeBtn.disabled = true;
+    // Stop any pending or in-flight gate check from writing a
+    // refusal over the completion result.
+    gateDone = true;
+    clearTimeout(gateTimer);
     try {
       pageStatus("Sending complete. Confirm in your wallet.");
       const completeRes = await walletCall(contractId(), "complete_job", { job_id: jobId, token_id: tokenId }, "0", window.GAS_100);
@@ -705,14 +723,14 @@ async function loadJobs() {
           if (isPoster) {
             completeHtml =
               "<p class=\"muted small\">As the poster, confirm the work is done to release the payment and issue the stamp.</p>" +
-              "<label>Your Merit token id</label>" +
+              "<label>Worker's Merit token id</label>" +
               "<input type=\"text\" class=\"acceptMerit\" placeholder=\"merit-2\" autocomplete=\"off\">" +
               "<div class=\"vote-row\"><button type=\"button\" class=\"btn secondary completeBtn\">Confirm completion</button></div>";
           } else if (isWorker) {
             completeHtml = "<p class=\"muted small\">You did the work. Submit your evidence below; the poster confirms completion, or the payment releases after the deadline.</p>";
           } else if (!walletAccountId) {
             completeHtml =
-              "<label>Your Merit token id</label>" +
+              "<label>Worker's Merit token id</label>" +
               "<input type=\"text\" class=\"acceptMerit\" placeholder=\"merit-2\" autocomplete=\"off\">" +
               "<div class=\"vote-row\"><button type=\"button\" class=\"btn secondary completeBtn\" disabled>Confirm completion</button></div>" +
               "<p class=\"muted small\">Connect the poster's wallet to confirm completion.</p>";
