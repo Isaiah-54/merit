@@ -349,6 +349,25 @@ async function main() {
       wdTx.actions[0].args.amount === "1000000000000000000000000",
       wdTx ? JSON.stringify(wdTx.actions[0]) : "no call captured");
 
+    // Pass a test builds the right call, with real gas, and the
+    // status lands below the Submit button, not at the top. This
+    // guards the bug where the status element id was passed as the
+    // gas amount, which the wallet rejected as "Cannot convert
+    // testStatus to a BigInt" and the status went to the page top.
+    await setWalletStub("alice.testnet");
+    await page.type("#testAnswer", "merit");
+    await page.click("#testBtn");
+    await sleep(500);
+    const testTx = await page.evaluate(() => window.__captured[0]);
+    check("test builds pass_test call with numeric gas",
+      testTx && testTx.actions[0].methodName === "pass_test" &&
+      testTx.actions[0].args.token_id === "merit-1" &&
+      testTx.actions[0].args.answer === "merit" &&
+      testTx.actions[0].gas === "100000000000000",
+      testTx ? JSON.stringify(testTx.actions[0]) : "no call captured");
+    const testStatusText = await page.$eval("#testStatus", (el) => el.textContent);
+    check("test status shows below the Submit button", testStatusText.includes("Sent") || testStatusText.includes("Sending answer"), testStatusText);
+
     // Merit page with no id defaults to merit-2, with a switcher.
     await page.goto(BASE + "/merit.html", { waitUntil: "networkidle0" });
     await sleep(900);

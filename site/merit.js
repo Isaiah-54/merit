@@ -359,7 +359,7 @@ document.getElementById("testForm").addEventListener("submit", async (ev) => {
   const answer = el("testAnswer").value.trim();
   if (!answer) { pageStatus("Enter an answer."); return; }
   const ok = await sendWithPending(el("testBtn"), "Sending answer. Confirm in your wallet.",
-    "pass_test", { token_id: TOKEN_ID, answer: answer }, "0", "testStatus");
+    "pass_test", { token_id: TOKEN_ID, answer: answer }, "0", undefined, "testStatus");
   // After the test confirms, the Merit reloads with its new stamp.
   // Take the visitor up to the Merit card so they see it, instead
   // of leaving them at the test form with nothing visibly changed.
