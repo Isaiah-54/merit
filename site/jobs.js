@@ -316,7 +316,11 @@ function wireJobCard(card, job) {
   const jobId = card.getAttribute("data-job-id");
   const input = card.querySelector(".acceptMerit");
   const msg = card.querySelector(".jobMsg");
-  if (!input || !msg) return;
+  // The token id input exists on offer cards and on taken cards
+  // shown to the poster (or with no wallet). A taken card shown to
+  // the worker has no input and no complete button, so the gate
+  // check and the take and complete actions are skipped below,
+  // while evidence and the rest still wire up.
   const showRefusal = (tokenId, gate) => {
     let why;
     if (gate.blank) {
@@ -355,6 +359,7 @@ function wireJobCard(card, job) {
   };
   // Instant gate: typing a Merit id checks it after a short pause,
   // so the outcome shows without tapping anything.
+  if (input && msg) {
   let gateTimer = null;
   input.addEventListener("input", () => {
     const tokenId = input.value.trim();
@@ -366,14 +371,15 @@ function wireJobCard(card, job) {
     }
     gateTimer = setTimeout(() => { runGateCheck(tokenId); }, 600);
   });
+  }
   const checkBtn = card.querySelector(".checkBtn");
-  if (checkBtn) checkBtn.addEventListener("click", async () => {
+  if (checkBtn && input && msg) checkBtn.addEventListener("click", async () => {
     const tokenId = input.value.trim();
     if (!tokenId) { msg.textContent = "Enter a Merit token id first."; return; }
     await runGateCheck(tokenId);
   });
   const acceptBtn = card.querySelector(".acceptBtn");
-  if (acceptBtn) acceptBtn.addEventListener("click", async () => {
+  if (acceptBtn && input && msg) acceptBtn.addEventListener("click", async () => {
     const tokenId = input.value.trim();
     if (!walletAccountId) { pageStatus("Connect your wallet first."); return; }
     if (!tokenId) { msg.textContent = "Enter a Merit token id first."; return; }
@@ -402,7 +408,7 @@ function wireJobCard(card, job) {
     }
   });
   const completeBtn = card.querySelector(".completeBtn");
-  if (completeBtn) completeBtn.addEventListener("click", async () => {
+  if (completeBtn && input && msg) completeBtn.addEventListener("click", async () => {
     const tokenId = input.value.trim();
     if (!walletAccountId) { pageStatus("Connect your wallet first."); return; }
     if (!tokenId) { msg.textContent = "Enter a Merit token id first."; return; }
@@ -425,7 +431,7 @@ function wireJobCard(card, job) {
   // this card's own message line, not at the top of the page. The
   // list re-reads a moment later, so the job then shows Cancelled.
   const cancelBtn = card.querySelector(".cancelBtn");
-  if (cancelBtn) cancelBtn.addEventListener("click", async () => {
+  if (cancelBtn && msg) cancelBtn.addEventListener("click", async () => {
     if (!walletAccountId) { msg.textContent = "Connect your wallet first."; return; }
     cancelBtn.disabled = true;
     msg.textContent = "Sending cancel. Confirm in your wallet.";
@@ -434,6 +440,10 @@ function wireJobCard(card, job) {
       const cancelRes = await walletCall(contractId(), call.method, call.args, call.depositYocto, call.gas);
       const cancelHash = txHashFromWalletResult(cancelRes);
       msg.innerHTML = txStatusHtml("Job cancelled. The escrow is refunded to the poster.", cancelHash, "The escrow is refunded to the poster once the chain confirms it.");
+      // The list re-reads a moment later and re-renders this card,
+      // wiping the card message, so the confirmation also goes to
+      // the page status line, where the hash and next step stay.
+      setTxStatus("Job cancelled. The escrow is refunded to the poster.", cancelHash, "The job now shows Cancelled.");
       setTimeout(loadJobs, 1500);
     } catch (e) {
       let r = null;
@@ -478,6 +488,10 @@ function wireJobCard(card, job) {
       const evRes = await walletCall(contractId(), call.method, call.args, call.depositYocto, call.gas);
       const evHash = txHashFromWalletResult(evRes);
       evMsg.innerHTML = txStatusHtml("Evidence submitted. It will show here once the chain confirms it.", evHash, "The poster reviews it, or the DAO judges it if the job is disputed.");
+      // Same as cancel: the list re-reads and re-renders, wiping the
+      // card message, so the hash and next step also go to the page
+      // status line, where they stay.
+      setTxStatus("Evidence submitted. It will show here once the chain confirms it.", evHash, "The poster reviews it, or the DAO judges it if the job is disputed.");
       setTimeout(loadJobs, 1500);
     } catch (e) {
       let r = null;
@@ -588,6 +602,30 @@ async function loadJobs() {
           const status = jobStatus(job);
           const worker = jobWorker(job);
           const pid = jobProposalId(job);
+          // Confirming completion is the poster's call onchain:
+          // complete_job rejects any other caller. The button is
+          // only shown, working, to the poster. The worker submits
+          // evidence and waits for the poster, or for the deadline.
+          const isPoster = !!(walletAccountId && job.poster && walletAccountId === job.poster);
+          const isWorker = !!(walletAccountId && worker && walletAccountId === worker);
+          let completeHtml = "";
+          if (isPoster) {
+            completeHtml =
+              "<p class=\"muted small\">As the poster, confirm the work is done to release the payment and issue the stamp.</p>" +
+              "<label>Your Merit token id</label>" +
+              "<input type=\"text\" class=\"acceptMerit\" placeholder=\"merit-2\" autocomplete=\"off\">" +
+              "<div class=\"vote-row\"><button type=\"button\" class=\"btn secondary completeBtn\">Confirm completion</button></div>";
+          } else if (isWorker) {
+            completeHtml = "<p class=\"muted small\">You did the work. Submit your evidence below; the poster confirms completion, or the payment releases after the deadline.</p>";
+          } else if (!walletAccountId) {
+            completeHtml =
+              "<label>Your Merit token id</label>" +
+              "<input type=\"text\" class=\"acceptMerit\" placeholder=\"merit-2\" autocomplete=\"off\">" +
+              "<div class=\"vote-row\"><button type=\"button\" class=\"btn secondary completeBtn\" disabled>Confirm completion</button></div>" +
+              "<p class=\"muted small\">Connect the poster's wallet to confirm completion.</p>";
+          } else {
+            completeHtml = "<p class=\"muted small\">Only the poster can confirm completion. The worker submits evidence below.</p>";
+          }
           return "<div class=\"card\" data-job-id=\"" + escapeHtml(job.job_id) + "\">" +
             "<div class=\"job-card-top\"><div class=\"label\">" + escapeHtml(job.title || job.job_id) + "</div><span class=\"chip status\">" + escapeHtml(status) + "</span></div>" +
             jobTypeHtml(job) +
@@ -600,9 +638,7 @@ async function loadJobs() {
             (job.worker_evidence ? "<div class=\"evidence-row\"><p class=\"small\"><strong>Worker evidence:</strong> " + evidenceHashHtml(job.worker_evidence) + (job.worker_evidence_ref ? " <button type=\"button\" class=\"btn secondary viewEvidenceBtn\" data-side=\"worker\">View evidence</button>" : "") + "</p><div class=\"evidenceContent\" aria-live=\"polite\"></div></div>" : "") +
             (status === "Disputed" ? "<p><a href=\"dao.html" + (pid != null ? "#proposal-" + escapeHtml(String(pid)) : "") + "\">See this dispute in the DAO proposals" + (pid != null ? " (proposal " + escapeHtml(String(pid)) + ")" : "") + "</a></p>" : "") +
             "<p class=\"muted small\">Job <span class=\"mono\">" + escapeHtml(job.job_id) + "</span> \u2022 Arbiter <span class=\"mono\">" + escapeHtml(job.arbiter || window.DAO_ID) + "</span></p>" +
-            "<label>Your Merit token id</label>" +
-            "<input type=\"text\" class=\"acceptMerit\" placeholder=\"merit-2\" autocomplete=\"off\">" +
-            "<div class=\"vote-row\"><button type=\"button\" class=\"btn secondary completeBtn\">Mark complete</button></div>" +
+            completeHtml +
             "<div class=\"msg jobMsg\" aria-live=\"polite\"></div>" +
             "<div class=\"panel\" style=\"margin-top:10px\"><h3 style=\"margin-top:0\">Submit evidence</h3>" +
             "<p class=\"muted small\" style=\"margin-top:0\">Post the hash of your evidence, plus a link to the evidence content itself, so the DAO can fetch it and check it against the hash.</p>" +
@@ -797,6 +833,10 @@ async function restoreSkillRequest() {
     let payment;
     try { payment = nearToYocto(el("jobPayment").value); } catch (e) { pageStatus(e.message); return; }
     if (payment <= 0n) { pageStatus("Enter a payment above zero."); return; }
+    // The contract rejects a payment below 0.001 NEAR, so the form
+    // refuses it before the wallet opens, instead of letting the
+    // user confirm and then fail onchain.
+    if (payment < nearToYocto("0.001")) { pageStatus("Minimum job payment is 0.001 NEAR."); return; }
     // Deadline is optional. When given, it becomes a timeout in
     // nanoseconds from now, which the contract takes as timeout_ns.
     let timeoutNs = null;
@@ -837,5 +877,9 @@ async function restoreSkillRequest() {
   });
 })();
 
-window.meritWalletChanged = function () { renderOpenJobs(); };
+// A wallet change re-reads the jobs: the taken cards gate the
+// Confirm completion button on the connected account, so they must
+// re-render when the wallet connects, changes, or signs out, not
+// just the open offers. On pages with no job list this is a no-op.
+window.meritWalletChanged = function () { loadJobs(); };
 loadJobs();

@@ -99,7 +99,7 @@ const WORKER_STALE_HASH = "33".repeat(32);
 const dataRef = (s) => "data:text/plain;base64," + Buffer.from(s, "utf8").toString("base64");
 const JOBS = [
   { job_id: "weldgate", title: "Weld the gate", description: "Weld the front gate shut.", required_stamps: [{ skill: "welding", min_level: 2 }], payment: "5000000000000000000000000", status: "Open", arbiter: "merit-dao.testnet", completion_stamp: { skill: "welding", level: 1 }, criteria: "Weld the gate shut with continuous beads and no gaps.", poster: "alice.testnet", poster_evidence: null, worker_evidence: null },
-  { job_id: "paintfence", title: "Paint the fence", description: "Paint the long fence.", required_stamps: [{ skill: "painting", min_level: 3 }], payment: "1000000000000000000000000", status: "Disputed", arbiter: "merit-dao.testnet", completion_stamp: { skill: "painting", level: 3 }, criteria: "Paint the long fence in two coats with no drips.", poster: "carol.testnet", poster_evidence: POSTER_EVIDENCE, worker_evidence: WORKER_EVIDENCE, poster_evidence_ref: dataRef(POSTER_CONTENT), worker_evidence_ref: dataRef(WORKER_CONTENT), dao_proposal_id: 0 },
+  { job_id: "paintfence", title: "Paint the fence", description: "Paint the long fence.", required_stamps: [{ skill: "painting", min_level: 3 }], payment: "1000000000000000000000000", status: "Disputed", arbiter: "merit-dao.testnet", completion_stamp: { skill: "painting", level: 3 }, criteria: "Paint the long fence in two coats with no drips.", poster: "carol.testnet", accepted_by: "dave.testnet", poster_evidence: POSTER_EVIDENCE, worker_evidence: WORKER_EVIDENCE, poster_evidence_ref: dataRef(POSTER_CONTENT), worker_evidence_ref: dataRef(WORKER_CONTENT), dao_proposal_id: 0 },
   { job_id: "buildlanding", title: "Build a landing page", description: "Build a one page site for the farm.", required_stamps: [{ skill: "merit-basics", min_level: 1 }], payment: "500000000000000000000000", status: "Open", arbiter: "merit-dao.testnet", completion_stamp: { skill: "coding", level: 1 }, criteria: "One page, loads fast, works on a phone.", poster: "alice.testnet", poster_evidence: null, worker_evidence: null },
   { job_id: "oldjob", title: "Old job", description: "A job nobody took.", required_stamps: [], payment: "1000000000000000000000000", status: "Cancelled", arbiter: "merit-dao.testnet", completion_stamp: { skill: "coding", level: 1 }, criteria: "Do the old work.", poster: "alice.testnet", poster_evidence: null, worker_evidence: null },
 ];
@@ -300,6 +300,9 @@ async function main() {
     check("index list cards carry the seal", (await page.$$(".merit-list-visual")).length === 4);
     check("index five things use a five across grid",
       (await page.$eval(".five-grid", (el) => getComputedStyle(el).gridTemplateColumns.split(" ").length)) === 5);
+    check("index kit card says onchain records, not NFTs",
+      t.includes("travel inside it as onchain records, not separate NFTs") && !t.includes("travel inside it as NFTs."),
+      t);
     check("index mint hint names hyphens only, not dots", t.includes("Lowercase letters, digits and hyphens only"));
     check("index mint form present", await page.$("#mintForm") !== null);
     check("index mint button links to mint page", await page.$eval("a.btn[href='mint.html']", (a) => a.textContent.includes("Mint a Merit")));
@@ -584,6 +587,13 @@ async function main() {
       cancelTx ? JSON.stringify(cancelTx.actions[0]) : "no call captured");
     msg = await firstCard.$eval(".jobMsg", (el) => el.textContent);
     check("cancel result shows below the Cancel button", msg.includes("Job cancelled"), msg);
+    // The list re-reads and re-renders a moment later, wiping the
+    // card message, so the hash and next step must also be in the
+    // page status line, where they stay.
+    const cancelStatus = await page.$eval("#pageStatus", (el) => el.textContent);
+    check("cancel result also shows in the page status with hash and next step",
+      cancelStatus.includes("Job cancelled") && cancelStatus.includes("0123456789…89abcdef") && cancelStatus.includes("Next:"),
+      cancelStatus);
     await sleep(1600);
     firstCard = (await page.$$(".card"))[0];
 
@@ -603,6 +613,10 @@ async function main() {
       evTx.actions[0].args.evidence_ref === "https://example.com/evidence.txt" &&
       evTx.actions[0].deposit === "0",
       evTx ? JSON.stringify(evTx.actions[0]) : "no call captured");
+    const evStatus = await page.$eval("#pageStatus", (el) => el.textContent);
+    check("submit evidence result also shows in the page status with hash and next step",
+      evStatus.includes("Evidence submitted") && evStatus.includes("0123456789…89abcdef") && evStatus.includes("Next:"),
+      evStatus);
     await sleep(1600);
     disputeCard = await page.$('[data-job-id="paintfence"]');
     await disputeCard.$eval(".evidenceHash", (el, h) => { el.value = h; }, POSTER_EVIDENCE);
@@ -631,6 +645,75 @@ async function main() {
       jobEvidenceTexts[0] && jobEvidenceTexts[0].includes(POSTER_CONTENT), jobEvidenceTexts[0] || "empty");
     check("jobs view evidence does not navigate away", page.url() === jobsUrlBefore, page.url());
 
+    // Confirm completion is the poster's call onchain: complete_job
+    // rejects any other caller. The taken card shows a working
+    // Confirm button only to the poster; the worker sees the wait
+    // line, a stranger sees no working button, and with no wallet
+    // the button is disabled with a hint.
+    await page.evaluate(() => { window.__meritTest.setWallet("carol.testnet"); });
+    await sleep(900);
+    disputeCard = await page.$('[data-job-id="paintfence"]');
+    const posterGate = await disputeCard.evaluate((card) => {
+      const b = card.querySelector(".completeBtn");
+      return { has: !!b, text: b ? b.textContent.trim() : "", disabled: b ? b.disabled : null, line: card.textContent.includes("As the poster, confirm the work is done") };
+    });
+    check("confirm completion button shown to the poster",
+      posterGate.has && posterGate.text === "Confirm completion" && posterGate.disabled === false && posterGate.line,
+      JSON.stringify(posterGate));
+    // The poster confirming builds complete_job with the job id and
+    // the Merit token id, and the status shows the hash and next step.
+    await disputeCard.$eval(".acceptMerit", (el) => { el.value = "merit-1"; });
+    await page.evaluate(() => { window.__captured = []; });
+    await disputeCard.$eval(".completeBtn", (b) => b.click());
+    await sleep(600);
+    const completeTx = await page.evaluate(() => window.__captured[0]);
+    check("confirm completion builds complete_job with the job id and Merit token id",
+      completeTx && completeTx.actions[0].methodName === "complete_job" &&
+      completeTx.actions[0].args.job_id === "paintfence" &&
+      completeTx.actions[0].args.token_id === "merit-1" &&
+      completeTx.actions[0].deposit === "0",
+      completeTx ? JSON.stringify(completeTx.actions[0]) : "no call captured");
+    const completeStatus = await page.$eval("#pageStatus", (el) => el.textContent);
+    check("confirm completion status shows the transaction hash and the next step",
+      completeStatus.includes("Complete sent") && completeStatus.includes("0123456789…89abcdef") && completeStatus.includes("Next:"),
+      completeStatus);
+    // Worker: dave.testnet took paintfence. No working confirm
+    // button, just the wait line and the evidence form.
+    await page.evaluate(() => { window.__meritTest.setWallet("dave.testnet"); });
+    await sleep(900);
+    disputeCard = await page.$('[data-job-id="paintfence"]');
+    const workerGate = await disputeCard.evaluate((card) => {
+      const b = card.querySelector(".completeBtn");
+      return { has: !!b, disabled: b ? b.disabled : null, line: card.textContent.includes("You did the work. Submit your evidence below") };
+    });
+    check("worker sees no working confirm completion button",
+      !workerGate.has && workerGate.line,
+      JSON.stringify(workerGate));
+    check("worker still sees the submit evidence form",
+      (await disputeCard.$(".submitEvidenceBtn")) !== null && (await disputeCard.$(".evidenceHash")) !== null);
+    // A stranger sees no working confirm button either.
+    await page.evaluate(() => { window.__meritTest.setWallet("alice.testnet"); });
+    await sleep(900);
+    disputeCard = await page.$('[data-job-id="paintfence"]');
+    const strangerGate = await disputeCard.evaluate((card) => {
+      const b = card.querySelector(".completeBtn");
+      return { has: !!b, disabled: b ? b.disabled : null, line: card.textContent.includes("Only the poster can confirm completion") };
+    });
+    check("a stranger sees no working confirm completion button",
+      !strangerGate.has && strangerGate.line,
+      JSON.stringify(strangerGate));
+    // No wallet: the button is there but disabled, with a hint.
+    await page.evaluate(() => { window.__meritTest.setWallet(null); });
+    await sleep(900);
+    disputeCard = await page.$('[data-job-id="paintfence"]');
+    const noWalletGate = await disputeCard.evaluate((card) => {
+      const b = card.querySelector(".completeBtn");
+      return { has: !!b, text: b ? b.textContent.trim() : "", disabled: b ? b.disabled : null, line: card.textContent.includes("Connect the poster's wallet to confirm completion") };
+    });
+    check("no wallet sees a disabled confirm completion button with a hint",
+      noWalletGate.has && noWalletGate.text === "Confirm completion" && noWalletGate.disabled === true && noWalletGate.line,
+      JSON.stringify(noWalletGate));
+
     // Accept with a stamped Merit but the chain refuses: friendly text, not a raw panic.
     await page.evaluate(() => {
       window.__captured = [];
@@ -652,6 +735,8 @@ async function main() {
       t.includes("Post job") && !t.includes("Create job"));
     check("create page states the 5 percent working royalty",
       t.includes("The Merit keeps 5% of the pay as its working royalty") && t.includes("95% goes to the worker") && t.includes("stays in the Merit's own account"));
+    check("create page states the minimum job payment",
+      t.includes("Minimum job payment is 0.001 NEAR"), t);
     check("create completion skill is a text input with a datalist of the registry skills",
       (await page.$eval("#jobCompletionSkill", (el) => el.tagName.toLowerCase())) === "input" &&
       JSON.stringify(await page.$$eval("#completionSkillsList option", (els) => els.map((o) => o.value))) ===
@@ -682,7 +767,18 @@ async function main() {
     boundStatus = await page.$eval("#pageStatus", (el) => el.textContent);
     check("create job refuses more than 10 required stamps with no transaction",
       boundCount === 0 && boundStatus.includes("10"), "sent=" + boundCount + " status=" + boundStatus);
+    // Bounds: a payment below 0.001 NEAR is refused before the
+    // wallet opens, no transaction. The stamps field still holds
+    // the 11 stamps from the check above, so it is reset first.
     await page.$eval("#jobStamps", (el) => { el.value = "welding 2"; });
+    await page.$eval("#jobPayment", (el) => { el.value = "0.0005"; });
+    await page.click("#createJobBtn");
+    await sleep(500);
+    boundCount = await page.evaluate(() => window.__captured.length);
+    boundStatus = await page.$eval("#pageStatus", (el) => el.textContent);
+    check("create job refuses a payment below 0.001 NEAR with no transaction",
+      boundCount === 0 && boundStatus.includes("Minimum job payment is 0.001 NEAR"), "sent=" + boundCount + " status=" + boundStatus);
+    await page.$eval("#jobPayment", (el) => { el.value = "5"; });
     await page.click("#createJobBtn");
     await sleep(500);
     const jobTx = await page.evaluate(() => window.__captured[0]);
