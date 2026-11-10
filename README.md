@@ -6,9 +6,9 @@ Credentials you earn. Doors only proof can open.
 
 ## Status
 
-Build complete. Ready to deploy. Not deployed. Not submitted.
+Deployed and demoed live on testnet. Not submitted yet.
 
-Planned contract account: `merit-nft.testnet`. Planned DAO account: `merit-dao.testnet`. Both are planned, not live. The account `merit.testnet` already exists and belongs to someone else, so Merit will deploy as `merit-nft.testnet`, which was verified free. The site still points at the placeholder `merit.testnet` until the deploy wires the real id.
+Contract: `merit-nft.testnet` (deploy tx `F6VrR4SUyBT6tx58yXd42sWKeRhD2DMCs3EJrja9kExq`). DAO: `merit-dao.testnet` (Sputnik v2, deploy tx `7vro3VpcRqWrSLShhHvawhzUyB5KrbSVANaDqm4pvoRm`). The account `merit.testnet` belongs to someone else, so Merit deploys as `merit-nft.testnet`. The site is wired to the live contract and DAO ids.
 
 Hackathon deadline: 14 November 2026, 23:59 UTC. Testnet only.
 
@@ -97,7 +97,7 @@ The dispute flow:
 
 ## The Merit DAO
 
-Planned DAO account: `merit-dao.testnet`. Not deployed yet.
+DAO account: `merit-dao.testnet` (Sputnik v2, deployed). The dispute in the live demo was decided here: proposal #0 passed 2-0 and executed.
 
 Council of three, threshold 2, a strict majority. Proposal bond 1 NEAR. Proposal period 7 days.
 
@@ -111,7 +111,7 @@ Signing constraint: the build holds no keys for `clearsite587.testnet` or `james
 
 ## The demo
 
-The demo has not run yet. The demo scripts are being written in parallel with these docs. The planned flow, all on testnet, with every step a real onchain transaction:
+The demo ran live on testnet on 2026-11-10 and verified 61 of 61 checks (43 live reads plus 18 receipt checks, `scripts/verify-demo.mjs`, log `merit-demo-log.json`). The full flow, all on testnet, with every step a real onchain transaction:
 
 1. Mint a blank Merit.
 2. Try to open a paid job and get refused onchain.
@@ -124,6 +124,8 @@ The demo has not run yet. The demo scripts are being written in parallel with th
 9. Lend the Merit to a second wallet and show access moving, then expiring.
 10. A short timeout job auto releases on silence after its deadline, paying the worker and issuing the stamp.
 11. A dispute is resolved by DAO proposal and council vote.
+
+Outcome: `merit-2` finished level 8 and locked, holding 5 stamps (`merit-basics` 1, `welding` 3, `torch-work` 1, `gate-welding` 1, `repair-welding` 2). Its subaccount holds 2.65 NEAR, of which 2.375 NEAR is withdrawable and 0.225 NEAR is retained by Merit. Four paid jobs totalled 4.5 NEAR. The dispute job was resolved by DAO proposal #0, which passed 2-0 and executed `pay_full` with the `repair-welding` stamp issued.
 
 The live smoke check that already exists is `scripts/smoke.mjs`. It mints `merit-1`, stamps welding level 1, posts a 1 NEAR job, accepts, confirms, then checks the subaccount balance is 0.05 NEAR init plus 1 NEAR payment, `get_merit` shows 0.95 NEAR withdrawable and 0.05 NEAR retained plus the completion stamp, and the worker withdraws 0.95 NEAR, leaving 0.05 NEAR init plus 0.05 NEAR retained in the subaccount.
 
@@ -150,7 +152,7 @@ Verified build output:
 
 Tests: unit tests 15 of 15 pass. Integration tests 17 of 17 pass, run in a near workspaces sandbox, including 4 tests against a real Sputnik v2 DAO contract covering the dispute proposal and vote paths.
 
-Site: `site/` in this repo. A headless verifier pass, `site/verify/verify.mjs`, passed 27 of 27 checks covering mint, Merit detail, the jobs board, and gate refusal rendering. The site config still carries the placeholder contract id `merit.testnet` until the deploy wires the real id.
+Site: `site/` in this repo. A headless verifier pass, `site/verify/verify.mjs`, passed 56 of 56 checks covering mint, Merit detail, the jobs board, and gate refusal rendering. The site config is wired to the live contract id `merit-nft.testnet` and DAO `merit-dao.testnet`.
 
 ## How to run it
 
@@ -173,7 +175,7 @@ node scripts/smoke.mjs
 
 `create-accounts.mjs` creates the fresh Merit only testnet accounts through the testnet helper faucet, 10 testnet NEAR each: contract, DAO, Joseph seat, poster, worker. `create-dao.mjs` deploys a Sputnik v2 DAO at `merit-dao.testnet` with the three member council and threshold 2. `deploy.mjs` deploys the Merit wasm, calls `new` with owner and DAO id, publishes the wallet once as a global contract, and verifies the result. `smoke.mjs` runs the live money path described above and writes `merit-smoke-log.json`.
 
-The full demo script is not written yet. Its file name and exact command will be added here once the demo scripts land. The site is served from `site/`; update `site/config.js` with the deployed contract id before use.
+The full demo is `scripts/demo.mjs`. Run it with `node scripts/demo.mjs`; to resume from a single phase use `node scripts/demo.mjs --only <phase>`. It writes `merit-demo-log.json`. The site is served from `site/`; its config is already wired to the deployed contract and DAO.
 
 ## Files
 
@@ -187,7 +189,9 @@ The full demo script is not written yet. Its file name and exact command will be
 | `scripts/create-dao.mjs` | Merit DAO creation |
 | `scripts/deploy.mjs` | Contract deploy and wallet publish |
 | `scripts/smoke.mjs` | Live money path check |
+| `scripts/demo.mjs` | Full live demo, 11 phases, writes `merit-demo-log.json` |
+| `scripts/verify-demo.mjs` | Verifies the demo, 61 of 61 checks |
 | `site/` | Mint, Merit detail, jobs board, lend |
-| `site/verify/verify.mjs` | Headless site verifier, 27 of 27 checks |
+| `site/verify/verify.mjs` | Headless site verifier, 56 of 56 checks |
 | `PITCH.md` | The pitch |
 | `skill.md` | The agent skill for Merit |
