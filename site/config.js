@@ -18,3 +18,5 @@ window.GAS_150 = "150000000000000";
 // DAO votes need 300 TGas: the threshold-reaching vote executes the
 // proposal's own call inside the same transaction.
 window.GAS_300 = "300000000000000";
+// Sputnik DAO proposal bond: 1 NEAR, paid by the proposer.
+window.DAO_PROPOSAL_BOND = "1000000000000000000000000";

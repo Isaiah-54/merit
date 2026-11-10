@@ -63,10 +63,31 @@ function fmtNsDate(ns) {
     return new Date(ms).toLocaleString();
   } catch (_) { return String(ns); }
 }
-// Completion skills the DAO registry holds. A job can only promise a
-// completion stamp the registry knows, so the create form offers
-// exactly these nine and the submit handler rejects anything else.
-const COMPLETION_SKILLS = ["welding", "torch-work", "gate-welding", "repair-welding", "merit-basics", "coding", "design", "writing", "data-entry"];
+// Completion skills the DAO registry holds. The create form offers
+// these as suggestions, but a poster may type any job type. A job can
+// only promise a completion stamp the registry knows, so an
+// unregistered skill is offered a DAO request instead of a job. The
+// contract remains the enforcer: create_job rejects a skill that is
+// not registered, whatever the form does.
+const COMPLETION_SKILLS_FALLBACK = ["welding", "torch-work", "gate-welding", "repair-welding", "merit-basics", "coding", "design", "writing", "data-entry"];
+let completionSkills = null;
+async function loadCompletionSkills() {
+  if (completionSkills) return completionSkills;
+  try {
+    const skills = await view("list_completion_skills", {});
+    if (Array.isArray(skills) && skills.length) {
+      completionSkills = skills.map((s) => String(s).toLowerCase());
+      return completionSkills;
+    }
+  } catch (_) { /* fall through to the fallback list */ }
+  completionSkills = COMPLETION_SKILLS_FALLBACK.slice();
+  return completionSkills;
+}
+function fillCompletionSkillsList(skills) {
+  const list = el("completionSkillsList");
+  if (!list) return;
+  list.innerHTML = skills.map((s) => "<option value=\"" + escapeHtml(s) + "\">").join("");
+}
 // Parse the "skill level" lines from the create form into the
 // required_stamps shape the contract takes.
 function parseRequiredStamps(text) {
@@ -118,6 +139,37 @@ function buildSubmitEvidenceCall(jobId, evidenceHash, evidenceRef) {
     args: { job_id: jobId, evidence_hash: evidenceHash, evidence_ref: evidenceRef || null },
     depositYocto: "0",
     gas: window.GAS_100,
+  };
+}
+// Build the exact DAO proposal call that asks the council to add a
+// completion skill to the registry. Kept separate so the headless
+// verifier can check the call without a real wallet. The proposer
+// pays the 1 NEAR bond; the council votes, and once the proposal
+// passes the skill can be promised as a completion stamp. The
+// proposal is a FunctionCall to the Merit contract's
+// add_completion_skill, following the demo's proposal shape.
+function buildAddSkillProposalCall(skill) {
+  const description = "Add " + skill + " as a completion stamp skill. A poster asked for this job type and the DAO registry does not list it yet. Once this proposal passes, jobs can promise " + skill + " as the completion stamp.";
+  return {
+    method: "add_proposal",
+    args: {
+      proposal: {
+        description: description,
+        kind: {
+          FunctionCall: {
+            receiver_id: contractId(),
+            actions: [{
+              method_name: "add_completion_skill",
+              args: btoa(JSON.stringify({ skill: skill })),
+              deposit: "0",
+              gas: window.GAS_100,
+            }],
+          },
+        },
+      },
+    },
+    depositYocto: window.DAO_PROPOSAL_BOND,
+    gas: window.GAS_150,
   };
 }
 // The gate check, onchain, plus whether the Merit is blank and
@@ -563,10 +615,98 @@ async function loadJobs() {
   });
 })();
 
+// After the wallet redirects back with a transaction hash, restore
+// the skill request result from the session handoff. Without a hash
+// the visitor came back without sending, so the handoff is stale.
+// The proposal is confirmed onchain before it is claimed as created.
+async function restoreSkillRequest() {
+  let pending = null;
+  try { pending = sessionStorage.getItem("merit-pending-skill-request"); } catch (_) { /* storage unavailable */ }
+  if (!pending) return;
+  try { sessionStorage.removeItem("merit-pending-skill-request"); } catch (_) { /* storage unavailable */ }
+  const params = new URLSearchParams(window.location.search);
+  if (!params.get("transactionHashes")) return;
+  let skill = "";
+  let proposalId = null;
+  try {
+    const p = JSON.parse(pending);
+    skill = p.skill || "";
+    proposalId = p.proposalId;
+  } catch (_) { return; }
+  if (!skill || proposalId == null) return;
+  const box = el("skillRequestBox");
+  const text = el("skillRequestText");
+  const msg = el("skillRequestMsg");
+  if (box) box.hidden = false;
+  if (text) text.textContent = "You asked the DAO to add \"" + skill + "\" as a completion stamp skill.";
+  let line = "The proposal was sent. Confirmation not verified yet. Check the DAO page for the new proposal.";
+  try {
+    const p = await daoView("get_proposal", { id: proposalId });
+    if (p && Number(p.id) === Number(proposalId)) {
+      line = "Proposal #" + proposalId + " was created. The DAO council votes on it. Once it passes, " + skill + " can be used when creating a job. See it under DAO.";
+    }
+  } catch (_) { /* fall through with the unverified line */ }
+  if (msg) msg.textContent = line;
+  pageStatus(line);
+}
+
 // Create job form (only present on the Create job page).
 (function wireCreateJobForm() {
   const form = el("createJobForm");
   if (!form) return;
+  // Suggest the registered skills as the poster types. The list is
+  // read live from the contract; the known skills are the fallback
+  // if the read fails.
+  loadCompletionSkills().then(fillCompletionSkillsList).catch(() => fillCompletionSkillsList(COMPLETION_SKILLS_FALLBACK));
+  restoreSkillRequest();
+  const requestBox = el("skillRequestBox");
+  const requestText = el("skillRequestText");
+  const requestMsg = el("skillRequestMsg");
+  const requestBtn = el("requestSkillBtn");
+  let pendingSkill = "";
+  function showSkillRequest(skill) {
+    pendingSkill = skill;
+    if (requestText) requestText.textContent = "\"" + skill + "\" is not in the DAO registry yet. Ask the DAO to add it, or pick a registered skill from the suggestions.";
+    if (requestMsg) requestMsg.textContent = "";
+    if (requestBox) requestBox.hidden = false;
+  }
+  if (requestBtn) requestBtn.addEventListener("click", async () => {
+    const skill = pendingSkill;
+    if (!skill) return;
+    if (!walletAccountId) { if (requestMsg) requestMsg.textContent = "Connect your wallet first."; return; }
+    const call = buildAddSkillProposalCall(skill);
+    // The proposal id is the one the DAO will assign next. Read it
+    // before sending, so the result can name it.
+    let proposalId = null;
+    try {
+      const nextId = await daoView("get_last_proposal_id", {});
+      proposalId = Number(nextId);
+    } catch (_) { /* the id is reported after the send instead */ }
+    try {
+      sessionStorage.setItem("merit-pending-skill-request", JSON.stringify({ skill: skill, proposalId: proposalId }));
+    } catch (_) { /* storage unavailable */ }
+    requestBtn.disabled = true;
+    if (requestMsg) requestMsg.textContent = "Sending proposal. Confirm in your wallet.";
+    pageStatus("Sending proposal. Confirm in your wallet. The 1 NEAR bond comes from you.");
+    try {
+      await walletCall(daoId(), call.method, call.args, call.depositYocto, call.gas);
+      // The wallet call resolved in this page (no redirect): show the
+      // result here and clear the handoff, so the restore does not
+      // repeat it on the next load.
+      try { sessionStorage.removeItem("merit-pending-skill-request"); } catch (_) { /* storage unavailable */ }
+      const line = proposalId != null
+        ? "Proposal #" + proposalId + " was sent. The DAO council votes on it. Once it passes, " + skill + " can be used when creating a job. See it under DAO."
+        : "The proposal was sent. The DAO council votes on it. Once it passes, " + skill + " can be used when creating a job. See it under DAO.";
+      if (requestMsg) requestMsg.textContent = line;
+      pageStatus(line);
+    } catch (e) {
+      try { sessionStorage.removeItem("merit-pending-skill-request"); } catch (_) { /* storage unavailable */ }
+      const r = reportFailure(e);
+      if (requestMsg) requestMsg.textContent = r.text;
+    } finally {
+      requestBtn.disabled = false;
+    }
+  });
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const btn = el("createJobBtn");
@@ -579,10 +719,10 @@ async function loadJobs() {
     let requiredStamps;
     try { requiredStamps = parseRequiredStamps(el("jobStamps").value); } catch (e) { pageStatus(e.message); return; }
     if (requiredStamps.length > 10) { pageStatus("A job can require at most 10 stamps."); return; }
-    const completionSkill = el("jobCompletionSkill").value.trim();
-    if (COMPLETION_SKILLS.indexOf(completionSkill.toLowerCase()) < 0) { pageStatus("Pick a completion stamp skill from the list. Only a skill in the DAO registry can be promised."); return; }
+    const completionSkill = el("jobCompletionSkill").value.trim().toLowerCase();
+    const skillErr = validateSkill(completionSkill);
+    if (skillErr) { pageStatus(skillErr); return; }
     const completionLevel = parseInt(el("jobCompletionLevel").value, 10);
-    if (!completionSkill) { pageStatus("Enter a completion stamp skill."); return; }
     if (!Number.isInteger(completionLevel) || completionLevel < 1 || completionLevel > 3) { pageStatus("Completion stamp level must be 1 to 3."); return; }
     const criteria = el("jobCriteria").value.trim();
     if (!criteria) { pageStatus("Enter the acceptance criteria."); return; }
@@ -601,6 +741,18 @@ async function loadJobs() {
       if (diffMs <= 0) { pageStatus("The deadline must be in the future."); return; }
       timeoutNs = (BigInt(diffMs) * 1000000n).toString();
     }
+    // The registry is the gate: a job can only promise a completion
+    // stamp the DAO registry knows. An unregistered skill is never
+    // sent to create_job. Instead the poster is offered a one tap
+    // request to add it, and the job stays unposted.
+    let skills;
+    try { skills = await loadCompletionSkills(); } catch (_) { skills = COMPLETION_SKILLS_FALLBACK; }
+    if (skills.indexOf(completionSkill) < 0) {
+      showSkillRequest(completionSkill);
+      pageStatus("\"" + completionSkill + "\" is not in the DAO registry yet. Ask the DAO to add it below, or pick a registered skill from the suggestions.");
+      return;
+    }
+    if (requestBox) requestBox.hidden = true;
     const call = buildCreateJobCall(jobId, title, description, requiredStamps, { skill: completionSkill, level: completionLevel }, criteria, payment.toString(), timeoutNs);
     btn.disabled = true;
     pageStatus("Sending job. Confirm in your wallet. The payment is held in escrow.");

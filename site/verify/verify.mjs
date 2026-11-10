@@ -135,6 +135,7 @@ function handleRpc(body) {
     if (method === "get_policy") return rpcResult(DAO_POLICY);
     if (method === "get_proposals") return rpcResult(DAO_PROPOSALS);
     if (method === "get_proposal") return rpcResult(DAO_PROPOSALS.find((p) => p.id === args.id) || null);
+    if (method === "get_last_proposal_id") return rpcResult(DAO_PROPOSALS.length);
     throw new Error("unknown DAO view method " + method);
   }
   if (method === "nft_tokens") {
@@ -154,6 +155,7 @@ function handleRpc(body) {
   if (method === "kit_price") return rpcResult("100000000000000000000000"); // 0.1 NEAR
   if (method === "list_jobs") return rpcResult(JOBS);
   if (method === "get_job") return rpcResult(JOBS.find((j) => j.job_id === args.job_id) || null);
+  if (method === "list_completion_skills") return rpcResult(["welding", "torch-work", "gate-welding", "repair-welding", "merit-basics", "coding", "design", "writing", "data-entry"]);
   if (method === "can_access") {
     return rpcResult(args.token_id === "merit-1" && args.job_id === "weldgate");
   }
@@ -591,16 +593,17 @@ async function main() {
     await sleep(600);
     t = await text();
     check("create page has the posting form", await page.$("#createJobForm") !== null && await page.$("#createJobBtn") !== null);
-    check("create completion skill offers exactly the nine registry skills",
-      JSON.stringify(await page.$$eval("#jobCompletionSkill option", (els) => els.map((o) => o.value))) ===
+    check("create completion skill is a text input with a datalist of the registry skills",
+      (await page.$eval("#jobCompletionSkill", (el) => el.tagName.toLowerCase())) === "input" &&
+      JSON.stringify(await page.$$eval("#completionSkillsList option", (els) => els.map((o) => o.value))) ===
       JSON.stringify(["welding", "torch-work", "gate-welding", "repair-welding", "merit-basics", "coding", "design", "writing", "data-entry"]),
-      (await page.$$eval("#jobCompletionSkill option", (els) => els.map((o) => o.value))).join(","));
+      (await page.$$eval("#completionSkillsList option", (els) => els.map((o) => o.value))).join(","));
     await setWalletStub("alice.testnet");
     await page.type("#jobId", "weldgate2");
     await page.type("#jobTitle", "Weld the second gate");
     await page.type("#jobDesc", "More welding.");
     await page.type("#jobStamps", "welding 2");
-    await page.$eval("#jobCompletionSkill", (el) => { el.value = "welding"; });
+    await page.type("#jobCompletionSkill", "welding");
     await page.type("#jobCriteria", "Weld it clean and strong.");
     await page.type("#jobPayment", "5");
     // Bounds: a description over 2000 chars is refused, no transaction.
@@ -637,6 +640,45 @@ async function main() {
     check("create job sends no arbiter, the DAO always arbitrates",
       jobTx && !("arbiter" in jobTx.actions[0].args),
       jobTx ? JSON.stringify(jobTx.actions[0].args) : "no call captured");
+
+    // An unregistered skill is never sent to create_job. The form
+    // offers a one tap DAO request instead, and the job stays unposted.
+    await page.$eval("#jobCompletionSkill", (el) => { el.value = "roof-repair"; });
+    await page.evaluate(() => { window.__captured = []; });
+    await page.click("#createJobBtn");
+    await sleep(800);
+    const unregCount = await page.evaluate(() => window.__captured.length);
+    const unregStatus = await page.$eval("#pageStatus", (el) => el.textContent);
+    const requestVisible = await page.$eval("#skillRequestBox", (el) => !el.hidden);
+    const requestText = await page.$eval("#skillRequestText", (el) => el.textContent);
+    check("create job with an unregistered skill sends no transaction",
+      unregCount === 0, "sent=" + unregCount);
+    check("create job with an unregistered skill offers a DAO request",
+      requestVisible && requestText.includes("roof-repair") && unregStatus.includes("roof-repair"),
+      "visible=" + requestVisible + " text=" + requestText + " status=" + unregStatus);
+    // Requesting creates a DAO proposal to add the skill, with the
+    // 1 NEAR bond, and reports the proposal id.
+    await page.click("#requestSkillBtn");
+    await sleep(800);
+    const propTx = await page.evaluate(() => window.__captured[0]);
+    const propArgs = propTx && propTx.actions[0].args.proposal;
+    const innerArgs = propArgs ? JSON.parse(Buffer.from(propArgs.kind.FunctionCall.actions[0].args, "base64").toString("utf8")) : null;
+    check("skill request builds add_proposal to add_completion_skill with the 1 NEAR bond",
+      propTx && propTx.receiverId === "merit-dao.testnet" &&
+      propTx.actions[0].methodName === "add_proposal" &&
+      propArgs.kind.FunctionCall.receiver_id === "merit-nft.testnet" &&
+      propArgs.kind.FunctionCall.actions[0].method_name === "add_completion_skill" &&
+      innerArgs && innerArgs.skill === "roof-repair" &&
+      propArgs.kind.FunctionCall.actions[0].deposit === "0" &&
+      propTx.actions[0].deposit === "1000000000000000000000000",
+      propTx ? JSON.stringify(propTx.actions[0]) : "no call captured");
+    const requestMsg = await page.$eval("#skillRequestMsg", (el) => el.textContent);
+    check("skill request reports the proposal id and the council vote",
+      requestMsg.includes("Proposal #2") && requestMsg.includes("roof-repair"),
+      requestMsg);
+    check("skill request sends no create_job call",
+      !propTx || propTx.actions[0].methodName !== "create_job",
+      propTx ? propTx.actions[0].methodName : "no call captured");
 
     // ---------- Completed jobs ----------
     await page.goto(BASE + "/jobs-completed.html", { waitUntil: "networkidle0" });

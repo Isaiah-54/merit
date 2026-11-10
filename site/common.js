@@ -22,6 +22,20 @@ function validateTokenId(id) {
   }
   return "";
 }
+// Skill names for completion stamps: lowercase letters, digits,
+// hyphens, dots and underscores, 1-64 chars, starting with a letter
+// or digit, no spaces. Mirrors the token id rules so a typed skill
+// matches the shape of the registry entries.
+function validateSkill(skill) {
+  const s = String(skill || "");
+  if (!s) return "Enter a completion stamp skill.";
+  if (s.length > 64) return "The skill must be 64 characters or fewer.";
+  if (s.includes(" ")) return "The skill cannot contain spaces. Use lowercase letters, digits and hyphens only, for example roof-repair instead of roof repair.";
+  if (!/^[a-z0-9][a-z0-9._-]*$/.test(s)) {
+    return "The skill can only use lowercase letters, digits, hyphens, dots and underscores, and must start with a letter or digit.";
+  }
+  return "";
+}
 function fmtYocto(yocto) {
   const y = BigInt(yocto);
   const whole = y / YOCTO_PER_NEAR;
