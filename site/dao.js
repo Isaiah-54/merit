@@ -150,15 +150,17 @@ function evidenceChangedFlags(job, description) {
   };
 }
 
-// One evidence row: the onchain hash, the reference as a link when
-// one was posted, and a Verify control that fetches the content and
-// checks it against the hash.
+// One evidence row: the onchain hash, a View evidence button that
+// shows the content inline on this page, and a Verify control that
+// fetches the content and checks it against the hash. The content is
+// shown inline because a raw data: link opens a blank tab on some
+// phones instead of showing the text.
 function evidenceRowHtml(label, hash, ref, jobId, side) {
-  let h = "<p>" + label + " evidence: ";
+  let h = "<div class=\"evidence-row\"><p>" + label + " evidence: ";
   if (hash) {
     h += "<span class=\"hash\">" + escapeHtml(hash) + "</span>";
     if (ref) {
-      h += " <a href=\"" + escapeHtml(evidenceRefUrl(ref)) + "\" target=\"_blank\" rel=\"noopener\">View evidence</a>";
+      h += " <button type=\"button\" class=\"btn secondary viewEvidenceBtn\" data-job-id=\"" + escapeHtml(jobId || "") + "\" data-side=\"" + side + "\">View evidence</button>";
     } else {
       h += " <span class=\"muted small\">No reference posted, so the content cannot be fetched.</span>";
     }
@@ -166,7 +168,7 @@ function evidenceRowHtml(label, hash, ref, jobId, side) {
   } else {
     h += "None submitted";
   }
-  return h + "</p>";
+  return h + "</p><div class=\"evidenceContent\" aria-live=\"polite\"></div></div>";
 }
 
 async function loadProposals() {
@@ -278,6 +280,20 @@ function renderProposals() {
     if (approveBtn) approveBtn.addEventListener("click", () => vote("VoteApprove", approveBtn));
     const rejectBtn = card.querySelector(".voteReject");
     if (rejectBtn) rejectBtn.addEventListener("click", () => vote("VoteReject", rejectBtn));
+    card.querySelectorAll(".viewEvidenceBtn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const jobId = btn.getAttribute("data-job-id");
+        const side = btn.getAttribute("data-side");
+        const job = daoJobs[jobId];
+        const row = btn.closest(".evidence-row");
+        const box = row ? row.querySelector(".evidenceContent") : null;
+        if (!job) { if (box) box.textContent = "The job record could not be read."; return; }
+        const ref = side === "poster" ? job.poster_evidence_ref : job.worker_evidence_ref;
+        btn.disabled = true;
+        try { await showEvidenceContent(box, ref); }
+        finally { btn.disabled = false; }
+      });
+    });
     card.querySelectorAll(".verifyEvidenceBtn").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const jobId = btn.getAttribute("data-job-id");

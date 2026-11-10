@@ -388,6 +388,20 @@ function wireJobCard(card, job) {
       cancelBtn.disabled = false;
     }
   });
+  // View evidence: show the referenced content inline in this card,
+  // instead of opening the raw reference in a new tab. A raw data:
+  // link opens a blank tab on some phones instead of showing the text.
+  card.querySelectorAll(".viewEvidenceBtn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const side = btn.getAttribute("data-side");
+      const row = btn.closest(".evidence-row");
+      const box = row ? row.querySelector(".evidenceContent") : null;
+      const ref = side === "poster" ? job.poster_evidence_ref : job.worker_evidence_ref;
+      btn.disabled = true;
+      try { await showEvidenceContent(box, ref); }
+      finally { btn.disabled = false; }
+    });
+  });
   // Submit evidence: either side posts the SHA 256 hash of its work
   // plus an optional reference to where the content lives, so the DAO
   // can fetch it and check it against the hash. The result shows in
@@ -455,8 +469,8 @@ async function loadJobs() {
             jobFactsHtml(job, status, { hidePay: true }) +
             (worker ? "<div class=\"kv\"><span>Worker</span><b><a class=\"mono\" href=\"merit.html?id=" + encodeURIComponent(worker) + "\">" + escapeHtml(worker) + "</a></b></div>" : "") +
             "<p><strong>Acceptance criteria</strong><br>" + escapeHtml(job.criteria || "Not posted yet.") + "</p>" +
-            (job.poster_evidence ? "<p class=\"small\"><strong>Poster evidence</strong><br><span class=\"mono\">" + escapeHtml(job.poster_evidence) + "</span>" + (job.poster_evidence_ref ? " <a href=\"" + escapeHtml(evidenceRefUrl(job.poster_evidence_ref)) + "\" target=\"_blank\" rel=\"noopener\">View evidence</a>" : "") + "</p>" : "") +
-            (job.worker_evidence ? "<p class=\"small\"><strong>Worker evidence</strong><br><span class=\"mono\">" + escapeHtml(job.worker_evidence) + "</span>" + (job.worker_evidence_ref ? " <a href=\"" + escapeHtml(evidenceRefUrl(job.worker_evidence_ref)) + "\" target=\"_blank\" rel=\"noopener\">View evidence</a>" : "") + "</p>" : "") +
+            (job.poster_evidence ? "<div class=\"evidence-row\"><p class=\"small\"><strong>Poster evidence</strong><br><span class=\"mono\">" + escapeHtml(job.poster_evidence) + "</span>" + (job.poster_evidence_ref ? " <button type=\"button\" class=\"btn secondary viewEvidenceBtn\" data-side=\"poster\">View evidence</button>" : "") + "</p><div class=\"evidenceContent\" aria-live=\"polite\"></div></div>" : "") +
+            (job.worker_evidence ? "<div class=\"evidence-row\"><p class=\"small\"><strong>Worker evidence</strong><br><span class=\"mono\">" + escapeHtml(job.worker_evidence) + "</span>" + (job.worker_evidence_ref ? " <button type=\"button\" class=\"btn secondary viewEvidenceBtn\" data-side=\"worker\">View evidence</button>" : "") + "</p><div class=\"evidenceContent\" aria-live=\"polite\"></div></div>" : "") +
             (status === "Disputed" ? "<p><a href=\"dao.html" + (pid != null ? "#proposal-" + escapeHtml(String(pid)) : "") + "\">See this dispute in the DAO proposals" + (pid != null ? " (proposal " + escapeHtml(String(pid)) + ")" : "") + "</a></p>" : "") +
             "<p class=\"muted small\">Job <span class=\"mono\">" + escapeHtml(job.job_id) + "</span> \u2022 Arbiter <span class=\"mono\">" + escapeHtml(job.arbiter || window.DAO_ID) + "</span></p>" +
             "<label>Your Merit token id</label>" +

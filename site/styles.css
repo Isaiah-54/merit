@@ -553,4 +553,9 @@ footer a:hover { color: var(--accent2); }
 .card.gate-closed { border-color: var(--line); }
 .gate-need { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 11px 14px; font-weight: 600; }
 .evidence-flag { background: #3a2a00; border: 1px solid #b98a1d; color: #ffd97a; border-radius: 10px; padding: 11px 14px; font-weight: 600; }
+/* Evidence content shown inline on the page, in the card that holds
+the evidence hash. Long text wraps and scrolls instead of
+overflowing the card on a phone. */
+.evidenceContent { margin: 6px 0 10px; }
+.evidence-text { white-space: pre-wrap; word-break: break-word; background: var(--panel2); border: 1px solid #2a3a52; border-radius: 10px; padding: 11px 14px; font-size: 14px; max-height: 260px; overflow: auto; margin: 0; }
 .gate-need b { color: var(--accent); }

@@ -561,6 +561,19 @@ async function main() {
     await sleep(1600);
     firstCard = (await page.$$(".card"))[0];
 
+    // View evidence on the disputed job card shows the content inline
+    // on the page, and does not navigate away.
+    disputeCard = await page.$('[data-job-id="paintfence"]');
+    const jobViewBtns = await disputeCard.$$(".viewEvidenceBtn");
+    check("jobs view evidence buttons present on the disputed job", jobViewBtns.length >= 2, "buttons=" + jobViewBtns.length);
+    const jobsUrlBefore = page.url();
+    await jobViewBtns[0].click();
+    await sleep(800);
+    const jobEvidenceTexts = await disputeCard.$$eval(".evidenceContent", (els) => els.map((e) => e.textContent));
+    check("jobs view evidence shows the poster content inline",
+      jobEvidenceTexts[0] && jobEvidenceTexts[0].includes(POSTER_CONTENT), jobEvidenceTexts[0] || "empty");
+    check("jobs view evidence does not navigate away", page.url() === jobsUrlBefore, page.url());
+
     // Accept with a stamped Merit but the chain refuses: friendly text, not a raw panic.
     await page.evaluate(() => {
       window.__captured = [];
@@ -655,8 +668,20 @@ async function main() {
     check("dao shows proposed outcome and criteria",
       t.includes("Refund the poster") && t.includes("Pay in full") && t.includes("two coats with no drips"));
     check("dao shows both sides evidence hashes", t.includes(POSTER_EVIDENCE) && t.includes(WORKER_EVIDENCE));
-    check("dao shows evidence references as links",
-      (await page.$$eval("a[href^='data:text/plain']", (els) => els.length)) >= 2);
+    // View evidence shows the content inline on the page. A raw
+    // data: link opens a blank tab on some phones, so the page must
+    // not link out to the raw reference at all.
+    check("dao shows view evidence buttons, not raw data links",
+      (await page.$$eval(".viewEvidenceBtn", (els) => els.length)) >= 2 &&
+      (await page.$$eval("a[href^='data:text/plain']", (els) => els.length)) === 0);
+    const viewBtns = await page.$$(".viewEvidenceBtn");
+    const urlBefore = page.url();
+    await viewBtns[0].click();
+    await sleep(800);
+    let evidenceTexts = await page.$$eval(".evidenceContent", (els) => els.map((e) => e.textContent));
+    check("dao view evidence shows the poster content inline",
+      evidenceTexts[0] && evidenceTexts[0].includes(POSTER_CONTENT), evidenceTexts[0] || "empty");
+    check("dao view evidence does not navigate away", page.url() === urlBefore, page.url());
     // Verify: the poster content hashes to the onchain hash, the
     // worker content does not, and the worker hash recorded in the
     // proposal description is stale, so the swap flag must show.

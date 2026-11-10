@@ -55,6 +55,53 @@ async function sha256Hex(buf) {
   const digest = await crypto.subtle.digest("SHA-256", buf);
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+// Fetch the content an evidence reference points to, as text.
+// Works for data: links and for web links that allow fetching.
+// Returns { ok: true, text } or { ok: false, reason }.
+async function fetchEvidenceText(ref) {
+  if (!ref) return { ok: false, reason: "No reference was posted." };
+  let res;
+  try {
+    res = await fetch(evidenceRefUrl(ref));
+  } catch (_) {
+    return { ok: false, reason: "The referenced content could not be fetched." };
+  }
+  if (!res || !res.ok) return { ok: false, reason: "The referenced content could not be fetched." };
+  try {
+    return { ok: true, text: await res.text() };
+  } catch (_) {
+    return { ok: false, reason: "The referenced content could not be read." };
+  }
+}
+// Show fetched evidence content inline in a container element,
+// instead of navigating away to the raw reference. A raw data: link
+// opens a blank tab on some phones, so the content is read here and
+// shown on the page. On fetch failure (a web link blocked by the
+// host), the reference is offered as an external link instead.
+async function showEvidenceContent(container, ref) {
+  if (!container) return;
+  container.textContent = "Loading evidence…";
+  const r = await fetchEvidenceText(ref);
+  if (r.ok) {
+    const pre = document.createElement("pre");
+    pre.className = "evidence-text";
+    pre.textContent = r.text;
+    container.innerHTML = "";
+    container.appendChild(pre);
+    return;
+  }
+  container.innerHTML = "";
+  const span = document.createElement("span");
+  span.className = "muted small";
+  span.textContent = r.reason + " ";
+  const a = document.createElement("a");
+  a.href = evidenceRefUrl(ref);
+  a.target = "_blank";
+  a.rel = "noopener";
+  a.textContent = "Open the reference";
+  container.appendChild(span);
+  container.appendChild(a);
+}
 // Show a classified failure, never a bare "transaction failed".
 function reportFailure(err) {
   let r = null;
