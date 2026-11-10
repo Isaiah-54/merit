@@ -88,19 +88,25 @@ async function loadMerit() {
       }).join("") + "</div>";
     }
 
-    el("balancePanel").innerHTML =
-      "<div class=\"kv\"><span>Sub-account balance</span><b id=\"subBal\">\u2026</b></div>" +
-      "<div class=\"kv\"><span>Withdrawable (95%)</span><b>" + escapeHtml(fmtYocto(m.balance_withdrawable || "0")) + " NEAR</b></div>" +
-      "<div class=\"kv\"><span>Retained by the Merit (5%)</span><b>" + escapeHtml(fmtYocto(m.balance_retained || "0")) + " NEAR</b></div>" +
-      "<p class=\"muted small\" style=\"margin-bottom:0\">Job payments split 95% withdrawable / 5% retained, enforced by the contract. The retained part stays in the Merit's own account.</p>";
+    const withdrawable = BigInt(m.balance_withdrawable || "0");
+    const retained = BigInt(m.balance_retained || "0");
+    let subBalText = "Not readable";
+    let mintDepositText = null;
     try {
       const bal = await rpcAccountBalance(meritAccountId());
-      const b = el("subBal");
-      if (b) b.textContent = fmtYocto(bal) + " NEAR";
-    } catch (_) {
-      const b = el("subBal");
-      if (b) b.textContent = "Not readable";
+      subBalText = fmtYocto(bal) + " NEAR";
+      const deposit = bal - withdrawable - retained;
+      if (deposit > 0n) mintDepositText = fmtYocto(deposit) + " NEAR";
+    } catch (_) { /* leave as Not readable */ }
+    let panelHtml =
+      "<div class=\"kv\"><span>Sub-account balance</span><b>" + escapeHtml(subBalText) + "</b></div>" +
+      "<div class=\"kv\"><span>Withdrawable (95% of job payments)</span><b>" + escapeHtml(fmtYocto(m.balance_withdrawable || "0")) + " NEAR</b></div>" +
+      "<div class=\"kv\"><span>Retained by the Merit (5% of job payments)</span><b>" + escapeHtml(fmtYocto(m.balance_retained || "0")) + " NEAR</b></div>";
+    if (mintDepositText) {
+      panelHtml += "<div class=\"kv\"><span>Mint deposit</span><b>" + escapeHtml(mintDepositText) + " NEAR</b></div>";
     }
+    panelHtml += "<p class=\"muted small\" style=\"margin-bottom:0\">Job payments split 95% withdrawable / 5% retained, enforced by the contract. The retained part stays in the Merit's own account. The mint deposit is the 0.05 NEAR that went into the sub-account when the Merit was minted; it is not part of the job split, which is why the three lines add up to the balance.</p>";
+    el("balancePanel").innerHTML = panelHtml;
 
     const kit = m.kit || [];
     if (kit.length === 0) {
