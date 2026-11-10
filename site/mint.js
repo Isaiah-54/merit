@@ -23,7 +23,14 @@ function showMintResult(tokenId, title) {
     "</div>" +
     levelBadgeHtml(0, [], ", blank, ready to earn stamps") +
     "</div></div>" +
-    "<p style=\"margin-top:14px\"><a class=\"btn\" href=\"merit.html?id=" + encodeURIComponent(tokenId) + "\">Open your new Merit</a></p>" +
+    "<h2>What is next</h2>" +
+    "<div class=\"next-step\"><div class=\"next-step-card\">" +
+    "<span class=\"next-step-num\" aria-hidden=\"true\">2</span>" +
+    "<div class=\"next-step-body\"><div class=\"next-step-label\">Next step: earn your first stamp</div>" +
+    "<p class=\"next-step-text\">Pass the test to earn your first stamp and open gated jobs.</p></div>" +
+    "<a class=\"btn\" href=\"merit.html?id=" + encodeURIComponent(tokenId) + "#testSection\">Pass the test</a>" +
+    "</div></div>" +
+    "<p style=\"margin-top:14px\"><a class=\"btn secondary\" href=\"merit.html?id=" + encodeURIComponent(tokenId) + "\">Open your new Merit</a></p>" +
     "<p class=\"muted small\">Mint sent. If the Merit does not open yet, give the chain a few seconds to confirm, then tap the link again.</p>";
   try { wrap.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (_) { /* scroll unavailable */ }
 }

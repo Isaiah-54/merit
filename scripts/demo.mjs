@@ -250,9 +250,15 @@ async function phase4() {
 }
 
 // ---- Phase 5: kit ----------------------------------------------------
+// The kit is the named tool tied to the welding credential: a Welding
+// torch (kit id "welding-torch"), minted as an NFT and deposited into
+// the Merit so the Merit visibly carries the tool its welding stamp
+// certifies the holder to use. The job gate is the stamp, not the kit:
+// removing the torch would take it out of the Merit but would not close
+// a job the stamps already unlock, so the demo does not claim otherwise.
 async function phase5() {
   const kit = cfg.kit;
-  console.log(`5. mint kit "${kit.name}" and deposit it into the Merit ...`);
+  console.log(`5. mint kit "${kit.name}" (the tool for the welding credential) and deposit it into the Merit ...`);
   const mintTx = await call(owner, cfg, CONTRACT_ID, 'mint_kit', {
     kit_token_id: kit.kit_token_id, name: kit.name, receiver_id: WORKER_ID,
   });
@@ -263,8 +269,8 @@ async function phase5() {
   expect(kitView.inside_merit === TOKEN, `kit should be inside ${TOKEN}, got ${kitView.inside_merit}`);
   const merit = await getMerit();
   expect((merit.kit || []).includes(kit.kit_token_id), 'get_merit kit list should contain the torch');
-  console.log(`   mint_kit tx ${mintTx}, deposit_kit tx ${depositTx}; kit inside ${TOKEN}`);
-  markStep(log, cfg, '5-kit', { mint_tx: mintTx, deposit_tx: depositTx, kit: kitView });
+  console.log(`   mint_kit tx ${mintTx}, deposit_kit tx ${depositTx}; "${kit.name}" (${kit.kit_token_id}) inside ${TOKEN}, the tool for the welding credential`);
+  markStep(log, cfg, '5-kit', { mint_tx: mintTx, deposit_tx: depositTx, kit: kitView, note: 'Welding torch is the named tool tied to the welding credential, held inside the Merit. The job gate is the stamp, not the kit.' });
 }
 
 // ---- Phase 6: main job ----------------------------------------------

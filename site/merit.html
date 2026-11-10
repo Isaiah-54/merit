@@ -27,14 +27,15 @@
   <p><a href="index.html">All Merits</a></p>
   <h1 id="meritTitle">Merit</h1>
   <div id="meritPicker"></div>
-  <div id="meritSummary"><p class="muted">Loading Merit…</p></div>
+  <div id="meritSummary"><p class="muted loading">Loading Merit…</p></div>
+  <div id="nextStep" aria-live="polite"></div>
 
   <h2>Stamps and level</h2>
-  <div id="stampList"><p class="muted">Loading stamps…</p></div>
+  <div id="stampList"><p class="muted loading">Loading stamps…</p></div>
 
   <h2>Account balance</h2>
-  <div class="panel" id="balancePanel"><p class="muted">Loading balance…</p></div>
-  <div class="panel">
+  <div class="panel" id="balancePanel"><p class="muted loading">Loading balance…</p></div>
+  <div class="panel" id="withdrawSection">
     <h3>Withdraw</h3>
     <p class="muted small">Withdraw from the withdrawable balance to your
     wallet. The retained part stays in the Merit account.</p>
@@ -46,7 +47,7 @@
   </div>
 
   <h2>Kit</h2>
-  <div id="kitList"><p class="muted">Loading kit…</p></div>
+  <div id="kitList"><p class="muted loading">Loading kit…</p></div>
   <div class="panel">
     <h3>Deposit kit into this Merit</h3>
     <form id="depositKitForm">
@@ -63,7 +64,7 @@
   </div>
 
   <h2>Lend</h2>
-  <div class="panel" id="lendPanel"><p class="muted">Loading lend state…</p></div>
+  <div class="panel" id="lendPanel"><p class="muted loading">Loading lend state…</p></div>
   <div class="panel">
     <h3>Lend this Merit</h3>
     <p class="muted small">Lending keeps the Merit yours. The borrower can
@@ -79,7 +80,7 @@
   </div>
 
   <h2>Stamp and test</h2>
-  <div class="panel">
+  <div class="panel" id="testSection">
     <h3>Add a stamp</h3>
     <p class="muted small">Only a stamp issuer can stamp. Stamping locks
     this Merit.</p>

@@ -54,6 +54,21 @@ const MERIT2 = {
   kit: [],
   lend: null,
 };
+// A Merit with one stamp only, so the gate refusal can name the
+// exact stamp it is missing for a gated job.
+const MERIT3 = {
+  token_id: "merit-3",
+  owner_id: "dave.testnet",
+  level: 1,
+  stamps: [
+    { skill: "merit-basics", level: 1, issuer: "Merit Test", stamped_at: 1760000000000000000 },
+  ],
+  balance_withdrawable: "0",
+  balance_retained: "0",
+  locked: true,
+  kit: [],
+  lend: null,
+};
 const POSTER_EVIDENCE = "11".repeat(32);
 const WORKER_EVIDENCE = "22".repeat(32);
 const JOBS = [
@@ -111,11 +126,13 @@ function handleRpc(body) {
     return rpcResult([
       { token_id: "merit-1", owner_id: "alice.testnet", metadata: { title: "Alice Merit" } },
       { token_id: "merit-2", owner_id: "carol.testnet", metadata: { title: "Carol Merit" } },
+      { token_id: "merit-3", owner_id: "dave.testnet", metadata: { title: "Dave Merit" } },
     ]);
   }
   if (method === "get_merit") {
     if (args.token_id === "merit-1") return rpcResult(MERIT1);
     if (args.token_id === "merit-2") return rpcResult(MERIT2);
+    if (args.token_id === "merit-3") return rpcResult(MERIT3);
     throw new Error("token does not exist");
   }
   if (method === "get_kit") return rpcResult({ kit_token_id: args.kit_token_id, name: "Welding Hammer" });
@@ -239,9 +256,13 @@ async function main() {
     check("index shows level and lock state",
       levelBadges.some((x) => x.includes("Level") && x.includes("3")) && t.includes("Locked"),
       "badges=" + JSON.stringify(levelBadges));
-    check("index list cards carry the seal", (await page.$$(".merit-list-visual")).length === 2);
+    check("index list cards carry the seal", (await page.$$(".merit-list-visual")).length === 3);
     check("index mint form present", await page.$("#mintForm") !== null);
     check("index mint button links to mint page", await page.$eval("a.btn[href='mint.html']", (a) => a.textContent.includes("Mint a Merit")));
+    const journeyLabels = await page.$$eval(".journey-step .journey-label", (els) => els.map((e) => e.textContent.trim()));
+    check("index journey strip shows all six steps",
+      journeyLabels.length === 6 && ["Mint", "Pass the test", "Earn a stamp", "Take a job", "Get paid", "Withdraw"].every((s) => journeyLabels.includes(s)),
+      journeyLabels.join(" | "));
 
     // Mint form builds the right call (wallet stubbed, no real wallet).
     await setWalletStub("alice.testnet");
@@ -286,6 +307,9 @@ async function main() {
     t = await text();
     check("mint page shows new Merit card with open link",
       t.includes("Your new Merit") && t.includes("merit10") && t.includes("Open your new Merit"));
+    check("mint page shows Pass the test as the next step",
+      t.includes("Pass the test") && t.includes("What is next") &&
+      (await page.$eval("a.btn[href^='merit.html?id=merit10']", (a) => a.textContent.includes("Pass the test"))));
 
     // ---------- Merit detail ----------
     await page.goto(BASE + "/merit.html?id=merit-1", { waitUntil: "networkidle0" });
@@ -301,6 +325,11 @@ async function main() {
     check("detail has withdraw, lend and stamp forms",
       (await page.$("#withdrawForm")) !== null && (await page.$("#lendForm")) !== null && (await page.$("#stampForm")) !== null);
     check("detail shows all five stamps", ["merit-basics", "welding", "torch-work", "gate-welding", "repair-welding"].every((s) => t.includes(s)));
+    // Labels are uppercased by CSS, so innerText returns them in
+    // capitals: compare lowercased for the label text.
+    check("detail balance hero shows the sub-account balance big", (await page.$(".balance-hero-num")) !== null && t.toLowerCase().includes("sub-account balance"));
+    check("detail withdraw hero button shows the withdrawable amount", (await page.$("#withdrawAllBtn")) !== null && t.includes("Withdraw 2.500 NEAR"));
+    check("detail next step for a paid Merit is withdraw", t.toLowerCase().includes("next step: get paid out") && t.includes("Withdraw 2.500 NEAR"));
 
     // Withdraw builds the right call.
     await setWalletStub("alice.testnet");
@@ -322,6 +351,7 @@ async function main() {
     const pickerText = await page.$eval("#meritPicker", (el) => el.textContent);
     check("detail switcher lists merit-1 and merit-2", pickerText.includes("merit-1") && pickerText.includes("merit-2"));
     check("detail default merit-2 is blank", t.includes("No stamps yet"));
+    check("detail next step for a blank Merit is pass the test", t.toLowerCase().includes("next step: earn your first stamp") && t.includes("Pass the test to earn your first stamp"));
 
     // ---------- Jobs hub ----------
     await page.goto(BASE + "/jobs.html", { waitUntil: "networkidle0" });
@@ -368,12 +398,20 @@ async function main() {
     await firstCard.$eval(".checkBtn", (b) => b.click());
     await sleep(600);
     let msg = await firstCard.$eval(".jobMsg", (el) => el.textContent);
-    check("gate check passes for stamped Merit", msg.includes("Access open"), msg);
+    check("gate check passes for stamped Merit", msg.includes("Your Merit unlocks this"), msg);
+    const gateOpen = await firstCard.evaluate((el) => el.classList.contains("gate-open"));
+    check("gate open state highlights the card and Take job", gateOpen);
     await firstCard.$eval(".acceptMerit", (el) => { el.value = "merit-2"; });
     await firstCard.$eval(".checkBtn", (b) => b.click());
     await sleep(600);
     msg = await firstCard.$eval(".jobMsg", (el) => el.textContent);
     check("gate check refuses blank Merit", msg.includes("Refused") && msg.includes("merit-2") && msg.toLowerCase().includes("blank"), msg);
+    // A Merit with stamps but missing the required one names it.
+    await firstCard.$eval(".acceptMerit", (el) => { el.value = "merit-3"; });
+    await firstCard.$eval(".checkBtn", (b) => b.click());
+    await sleep(600);
+    msg = await firstCard.$eval(".jobMsg", (el) => el.textContent);
+    check("gate refusal names the missing stamp", msg.includes("Refused") && msg.includes("Needs welding level 2"), msg);
 
     // Accept with an unstamped Merit: refusal, and no transaction sent.
     await setWalletStub("alice.testnet");

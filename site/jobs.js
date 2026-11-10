@@ -96,16 +96,24 @@ function buildCreateJobCall(jobId, title, description, requiredStamps, completio
     gas: window.GAS_150,
   };
 }
-// The gate check, onchain, plus whether the Merit is blank, so a
-// refusal can say plainly why the door stayed shut.
-async function checkGate(tokenId, jobId) {
+// The gate check, onchain, plus whether the Merit is blank and
+// exactly which required stamps it is missing, so a refusal can
+// name the stamp instead of saying only that the door stayed shut.
+async function checkGate(tokenId, job) {
+  let stamps = [];
   let blank = false;
   try {
     const m = await view("get_merit", { token_id: tokenId });
-    blank = !(m.stamps && m.stamps.length);
+    stamps = Array.isArray(m.stamps) ? m.stamps : [];
+    blank = stamps.length === 0;
   } catch (_) { blank = true; }
-  const ok = await view("can_access", { token_id: tokenId, job_id: jobId, account_id: walletAccountId || "" });
-  return { ok: !!ok, blank: blank };
+  const ok = await view("can_access", { token_id: tokenId, job_id: job.job_id, account_id: walletAccountId || "" });
+  const required = normStamps(job);
+  const missing = required.filter((req) => {
+    const held = stamps.find((s) => String(s.skill).toLowerCase() === String(req.skill).toLowerCase());
+    return !held || (Number(held.level) || 0) < req.level;
+  });
+  return { ok: !!ok, blank: blank, missing: missing };
 }
 function jobFactsHtml(job, status, opts) {
   const hidePay = !!(opts && opts.hidePay);
@@ -192,28 +200,70 @@ function renderOpenJobs() {
       "<div class=\"msg jobMsg\" aria-live=\"polite\"></div>" +
       "</div>";
   }).join("") + "</div>";
-  offersEl.querySelectorAll(".card").forEach(wireJobCard);
+  offersEl.querySelectorAll(".card").forEach((card) => {
+    const j = filtered.find((x) => x.job_id === card.getAttribute("data-job-id"));
+    wireJobCard(card, j || { job_id: card.getAttribute("data-job-id"), required_stamps: [] });
+  });
 }
-function wireJobCard(card) {
+function wireJobCard(card, job) {
   const jobId = card.getAttribute("data-job-id");
   const input = card.querySelector(".acceptMerit");
   const msg = card.querySelector(".jobMsg");
   if (!input || !msg) return;
-  const showRefusal = (tokenId, blank) => {
-    msg.innerHTML = "<div class=\"refusal\">Refused. " + (blank
-      ? "Merit <span class=\"mono\">" + escapeHtml(tokenId) + "</span> is blank: it holds no stamps at all, so it cannot take a gated job."
-      : "Merit <span class=\"mono\">" + escapeHtml(tokenId) + "</span> does not hold the required stamp for this job.") + " No money moved.</div>";
+  const showRefusal = (tokenId, gate) => {
+    let why;
+    if (gate.blank) {
+      why = "Merit " + tokenId + " is blank: it holds no stamps at all, so it cannot take a gated job.";
+    } else if (gate.missing && gate.missing.length) {
+      const need = gate.missing.map((s) => s.skill + " level " + s.level).join(", ");
+      why = "Merit " + tokenId + " does not hold the required stamp for this job. Needs " + need + ".";
+    } else {
+      why = "Merit " + tokenId + " does not hold the required stamp for this job.";
+    }
+    msg.innerHTML = "<div class=\"gate-need\">Refused. " + escapeHtml(why) + " No money moved.</div>";
   };
+  // One place renders the gate outcome: green and prominent when
+  // the Merit unlocks the job, plain and specific when it does not.
+  const renderGateOutcome = (tokenId, gate) => {
+    if (gate.ok) {
+      card.classList.add("gate-open");
+      card.classList.remove("gate-closed");
+      msg.innerHTML = "<div class=\"granted\">Your Merit unlocks this. " + escapeHtml(tokenId) + " holds the required stamps and can take this job.</div>";
+    } else {
+      card.classList.add("gate-closed");
+      card.classList.remove("gate-open");
+      showRefusal(tokenId, gate);
+    }
+  };
+  const runGateCheck = async (tokenId) => {
+    msg.innerHTML = "<p class=\"muted loading\">Checking the Merit's stamps onchain…</p>";
+    try {
+      const gate = await checkGate(tokenId, job);
+      renderGateOutcome(tokenId, gate);
+      return gate;
+    } catch (e) {
+      msg.textContent = "Could not check access. " + (e.message || String(e));
+      return null;
+    }
+  };
+  // Instant gate: typing a Merit id checks it after a short pause,
+  // so the outcome shows without tapping anything.
+  let gateTimer = null;
+  input.addEventListener("input", () => {
+    const tokenId = input.value.trim();
+    clearTimeout(gateTimer);
+    if (!tokenId) {
+      msg.textContent = "";
+      card.classList.remove("gate-open", "gate-closed");
+      return;
+    }
+    gateTimer = setTimeout(() => { runGateCheck(tokenId); }, 600);
+  });
   const checkBtn = card.querySelector(".checkBtn");
   if (checkBtn) checkBtn.addEventListener("click", async () => {
     const tokenId = input.value.trim();
     if (!tokenId) { msg.textContent = "Enter a Merit token id first."; return; }
-    msg.textContent = "Checking the Merit's stamps onchain\u2026";
-    try {
-      const gate = await checkGate(tokenId, jobId);
-      if (gate.ok) msg.innerHTML = "<div class=\"granted\">Access open. This Merit holds the required stamps and can take this job.</div>";
-      else showRefusal(tokenId, gate.blank);
-    } catch (e) { msg.textContent = "Could not check access. " + (e.message || String(e)); }
+    await runGateCheck(tokenId);
   });
   const acceptBtn = card.querySelector(".acceptBtn");
   if (acceptBtn) acceptBtn.addEventListener("click", async () => {
@@ -221,19 +271,20 @@ function wireJobCard(card) {
     if (!walletAccountId) { pageStatus("Connect your wallet first."); return; }
     if (!tokenId) { msg.textContent = "Enter a Merit token id first."; return; }
     acceptBtn.disabled = true;
-    msg.textContent = "Checking the gate first\u2026";
+    msg.innerHTML = "<p class=\"muted loading\">Checking the gate first…</p>";
     try {
-      let gate = { ok: true, blank: false };
-      try { gate = await checkGate(tokenId, jobId); } catch (_) { /* precheck is best effort; the contract is the gate */ }
+      let gate = { ok: true, blank: false, missing: [] };
+      try { gate = await checkGate(tokenId, job); } catch (_) { /* precheck is best effort; the contract is the gate */ }
       if (!gate.ok) {
-        showRefusal(tokenId, gate.blank);
+        renderGateOutcome(tokenId, gate);
         pageStatus("Refused. This Merit lacks the required stamp. No money moved.");
         return;
       }
+      renderGateOutcome(tokenId, gate);
       pageStatus("Sending take job. Confirm in your wallet.");
       await walletCall(contractId(), "accept_job", { job_id: jobId, token_id: tokenId }, "0", window.GAS_100);
       pageStatus("Job taken. It will show here once the chain confirms it.");
-      msg.textContent = "Taken. Reloading\u2026";
+      msg.textContent = "Taken. Reloading…";
       loadJobs();
     } catch (e) {
       const r = reportFailure(e);
@@ -306,7 +357,10 @@ async function loadJobs() {
             "<div class=\"msg jobMsg\" aria-live=\"polite\"></div>" +
             "</div>";
         }).join("") + "</div>";
-        progressEl.querySelectorAll(".card").forEach(wireJobCard);
+        progressEl.querySelectorAll(".card").forEach((card) => {
+          const j = progressJobs.find((x) => x.job_id === card.getAttribute("data-job-id"));
+          wireJobCard(card, j || { job_id: card.getAttribute("data-job-id"), required_stamps: [] });
+        });
       }
     }
 

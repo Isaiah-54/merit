@@ -1,0 +1,1 @@
+{"dependencies":{"near-api-js":"^5.1.1"},"description":"Merit: the NFT that proves what you can do. Credentials you earn, doors only proof can open.","name":"merit","private":true,"scripts":{"demo":"node scripts/demo.mjs","run-demo":"bash scripts/run-demo.sh","verify-demo":"node scripts/verify-demo.mjs"},"type":"module","version":"1.0.0"}

@@ -27,6 +27,37 @@ Live site: https://merit-black.vercel.app/
 
 To verify any of it onchain, the contract is `merit-nft.testnet` and the DAO is `merit-dao.testnet`. Every step above is a real onchain read or transaction; nothing is mocked.
 
+## Reproduce the full demo (one command)
+
+The 11-step demo that produced the numbers above is a script you can run yourself. It mints a blank Merit, gets refused on a gated job, earns two stamps, deposits kit, takes a paid job, gets paid, withdraws, lends, hits a timeout, and resolves a dispute through the DAO. Every step is a real onchain transaction, and the verifier checks the result against the chain.
+
+```sh
+git clone https://github.com/Isaiah-54/merit.git
+cd merit
+bash scripts/run-demo.sh
+```
+
+That is the whole command. It installs dependencies if needed, runs all 11 phases, then runs the verifier. A pass looks like this at the end:
+
+```text
+43 live + 18 receipt checks passed (61/61 total).
+== DEMO PASSED: all 11 phases ran and the verifier passed (expect 61/61) ==
+```
+
+If it stops partway, resume one phase with:
+
+```sh
+bash scripts/run-demo.sh --only 11
+```
+
+(replace 11 with the phase number 1-11). To start over from scratch:
+
+```sh
+bash scripts/run-demo.sh --fresh
+```
+
+Two things to know: the demo needs the demo accounts and the deployed contract (the script stops and tells you the exact setup commands if they are missing), and phase 11 needs a manual second DAO vote — the script cannot sign for Isaiah or James, so it waits onchain for that vote (up to 30 minutes) and then continues. The vote is real and recorded onchain, never faked.
+
 ## Lead and the other project
 
 Lead: Isaiah.
@@ -47,11 +78,11 @@ Each Merit owns its own real NEAR subaccount, created when the Merit is minted. 
 
 ### 2. Earn
 
-The Merit takes a 5% cut of every job it unlocks, paid into its own account. This is not a resale royalty. A stamped Merit locks and cannot be sold, so there is no resale to take a cut from. Merit earns when it works, not when it sells. On a 2 NEAR job, 1.9 NEAR is withdrawable by the holder and 0.1 NEAR stays retained in the Merit.
+The Merit earns by working. Every time its stamps unlock a job, the Merit keeps 5% of that job's pay in its own account. That 5% is the Merit's royalty: not a resale royalty, a working royalty. A stamped Merit locks and cannot be sold, so there is no resale to take a cut from and no resale royalty to pay. Instead the NFT earns each time its credentials open a door. The work is the royalty. On a 2 NEAR job, 1.9 NEAR is withdrawable by the holder and 0.1 NEAR stays retained in the Merit, earned by unlocking that job.
 
 ### 3. Hold inventory
 
-The Merit carries its own kit: the specific tools tied to its credentials, held inside the Merit as NFTs. A welder's Merit carries a welding torch. A photographer's Merit carries a camera. The inventory belongs to the job, not to a general bag. Sell the kit and the Merit loses the tools its work depends on.
+The Merit carries its own kit: the specific tools tied to its credentials, held inside the Merit as NFTs. A welder's Merit carries a welding torch. A photographer's Merit carries a camera. The inventory belongs to the job, not to a general bag. The kit is the visible proof of what the credential certifies the holder to use. The job gate is the stamp, not the kit: removing a tool takes it out of the Merit, but it does not close a job the stamps already unlock. The demo deposits a named Welding torch into merit-2, the tool for its welding credential, and the Merit page shows it by name.
 
 ### 4. Carry credentials
 
@@ -132,7 +163,7 @@ The demo ran live on testnet on 2026-11-10 and verified 61 of 61 checks (43 live
 2. Try to open a paid job and get refused onchain.
 3. Pass the test and earn the `merit-basics` stamp.
 4. Earn a DAO attestation stamp.
-5. Deposit kit into the Merit.
+5. Deposit kit into the Merit: a named Welding torch, the tool for the welding credential, minted as an NFT and held inside merit-2.
 6. Accept a paid job, now that the gates open.
 7. The poster confirms completion. Payment lands in the Merit's subaccount: on a 2 NEAR job, 1.9 NEAR withdrawable and 0.1 NEAR retained. The completion stamp is issued.
 8. Withdraw from the subaccount to the holder.
@@ -140,7 +171,7 @@ The demo ran live on testnet on 2026-11-10 and verified 61 of 61 checks (43 live
 10. A short timeout job auto releases on silence after its deadline, paying the worker and issuing the stamp.
 11. A dispute is resolved by DAO proposal and council vote.
 
-Outcome: `merit-2` finished level 8 and locked, holding 5 stamps (`merit-basics` 1, `welding` 3, `torch-work` 1, `gate-welding` 1, `repair-welding` 2). Its subaccount holds 2.65 NEAR, of which 2.375 NEAR is withdrawable and 0.225 NEAR is retained by Merit. Four paid jobs totalled 4.5 NEAR. The dispute job was resolved by DAO proposal #0, which passed 2-0 and executed `pay_full` with the `repair-welding` stamp issued.
+Outcome: `merit-2` finished level 8 and locked, holding 5 stamps (`merit-basics` 1, `welding` 3, `torch-work` 1, `gate-welding` 1, `repair-welding` 2) and carrying a named Welding torch in its kit. Its subaccount holds 2.65 NEAR, of which 2.375 NEAR is withdrawable and 0.225 NEAR is retained by Merit. That 0.225 NEAR is what the Merit earned by working: 5% of each of the four paid jobs its stamps unlocked, kept in its own account. Four paid jobs totalled 4.5 NEAR. The dispute job was resolved by DAO proposal #0, which passed 2-0 and executed `pay_full` with the `repair-welding` stamp issued.
 
 The live smoke check that already exists is `scripts/smoke.mjs`. It mints `merit-1`, stamps welding level 1, posts a 1 NEAR job, accepts, confirms, then checks the subaccount balance is 0.05 NEAR init plus 1 NEAR payment, `get_merit` shows 0.95 NEAR withdrawable and 0.05 NEAR retained plus the completion stamp, and the worker withdraws 0.95 NEAR, leaving 0.05 NEAR init plus 0.05 NEAR retained in the subaccount.
 
@@ -205,7 +236,9 @@ The full demo is `scripts/demo.mjs`. Run it with `node scripts/demo.mjs`; to res
 | `scripts/deploy.mjs` | Contract deploy and wallet publish |
 | `scripts/smoke.mjs` | Live money path check |
 | `scripts/demo.mjs` | Full live demo, 11 phases, writes `merit-demo-log.json` |
+| `scripts/run-demo.sh` | One-click demo + verifier wrapper (npm install, demo, verify, pass/fail summary) |
 | `scripts/verify-demo.mjs` | Verifies the demo, 61 of 61 checks |
+| `package.json` | Node dependencies (near-api-js 5.1.1) for the demo scripts |
 | `site/` | Mint, Merit detail, jobs board, lend |
 | `site/verify/verify.mjs` | Headless site verifier, 56 of 56 checks |
 | `PITCH.md` | The pitch |

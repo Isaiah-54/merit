@@ -70,11 +70,12 @@ async function loadMerit() {
       "</div>" +
       levelBadgeHtml(level, stamps, ", computed onchain from its stamps") +
       "</div></div>";
+    renderNextStep(m);
 
     if (!stamps.length) {
       el("stampList").innerHTML = "<div class=\"panel\"><p style=\"margin:0\">No stamps yet. This Merit is blank. It cannot take a gated job until a whitelisted issuer stamps it.</p></div>";
     } else {
-      el("stampList").innerHTML = "<div class=\"stamp-grid\">" + stamps.map((s) => {
+      el("stampList").innerHTML = "<div class=\"stamp-grid stamp-grid-large\">" + stamps.map((s) => {
         const lvl = Number(s.level) || 0;
         let pips = "";
         for (let i = 0; i < Math.min(lvl, 10); i++) pips += "<i></i>";
@@ -98,19 +99,42 @@ async function loadMerit() {
       const deposit = bal - withdrawable - retained;
       if (deposit > 0n) mintDepositText = fmtYocto(deposit) + " NEAR";
     } catch (_) { /* leave as Not readable */ }
-    let panelHtml =
-      "<div class=\"kv\"><span>Sub-account balance</span><b>" + escapeHtml(subBalText) + "</b></div>" +
+    // A withdraw sent in this session: show a clear confirmation
+    // only when the wallet returned with a transaction hash. A
+    // rejected wallet call leaves no hash, so no false confirmation.
+    let confirmHtml = "";
+    try {
+      const conf = sessionStorage.getItem("merit-withdraw-confirm");
+      if (conf) {
+        sessionStorage.removeItem("merit-withdraw-confirm");
+        const params2 = new URLSearchParams(window.location.search);
+        if (params2.get("transactionHashes")) {
+          confirmHtml = "<div class=\"success-banner\">Withdraw of " + escapeHtml(conf) + " NEAR sent to your wallet. It lands once the chain confirms it.</div>";
+        }
+      }
+    } catch (_) { /* storage unavailable */ }
+    let panelHtml = confirmHtml +
+      "<div class=\"balance-hero\"><div class=\"balance-hero-label\">Sub-account balance</div>" +
+      "<div class=\"balance-hero-num\">" + escapeHtml(subBalText) + "</div>" +
+      "<div class=\"balance-hero-sub\">Your Merit's own NEAR account: <span class=\"mono\">" + escapeHtml(meritAccountId()) + "</span></div></div>";
+    if (withdrawable > 0n) {
+      panelHtml += "<p><button type=\"button\" class=\"btn withdraw-hero-btn\" id=\"withdrawAllBtn\">Withdraw " + escapeHtml(fmtYocto(m.balance_withdrawable)) + " NEAR to your wallet</button></p>";
+    }
+    panelHtml +=
       "<div class=\"kv\"><span>Withdrawable (95% of job payments)</span><b>" + escapeHtml(fmtYocto(m.balance_withdrawable || "0")) + " NEAR</b></div>" +
       "<div class=\"kv\"><span>Retained by the Merit (5% of job payments)</span><b>" + escapeHtml(fmtYocto(m.balance_retained || "0")) + " NEAR</b></div>";
     if (mintDepositText) {
       panelHtml += "<div class=\"kv\"><span>Mint deposit</span><b>" + escapeHtml(mintDepositText) + " NEAR</b></div>";
     }
-    panelHtml += "<p class=\"muted small\" style=\"margin-bottom:0\">Job payments split 95% withdrawable / 5% retained, enforced by the contract. The retained part stays in the Merit's own account. The mint deposit is the 0.05 NEAR that went into the sub-account when the Merit was minted; it is not part of the job split, which is why the three lines add up to the balance.</p>";
+    panelHtml += "<p class=\"muted small\" style=\"margin-bottom:0\">Job payments split 95% withdrawable / 5% retained, enforced by the contract. The retained part is what this Merit earned by working: every time its stamps unlock a job, the Merit keeps 5% of that job's pay. It is not a resale cut. A stamped Merit cannot be sold, so the Merit earns by doing the work, not by changing hands. The mint deposit is the 0.05 NEAR that went into the sub-account when the Merit was minted; it is not part of the job split, which is why the three lines add up to the balance.</p>";
     el("balancePanel").innerHTML = panelHtml;
+    const wab = el("withdrawAllBtn");
+    if (wab) wab.addEventListener("click", () => withdrawAll(withdrawable, wab));
 
     const kit = m.kit || [];
+    const kitIntro = "<p class=\"muted small\" style=\"margin-top:0\">The tools this Merit carries. Each tool is a named NFT tied to a credential the Merit holds, kept inside the Merit so the holder always has the right tool for the work its stamps unlock.</p>";
     if (kit.length === 0) {
-      el("kitList").innerHTML = "<p class=\"muted\">No kit inside this Merit yet.</p>";
+      el("kitList").innerHTML = kitIntro + "<p class=\"muted\">No kit inside this Merit yet. Deposit a tool below and it shows here by name.</p>";
     } else {
       const items = [];
       for (const kitId of kit) {
@@ -119,9 +143,10 @@ async function loadMerit() {
           const k = await view("get_kit", { kit_token_id: kitId });
           if (k && k.name) name = k.name;
         } catch (_) { /* show the id when the kit read fails */ }
-        items.push("<div class=\"card\"><div class=\"label\">Kit</div><p><strong>" + escapeHtml(name) + "</strong></p><p class=\"muted small\">" + escapeHtml(kitId) + "</p></div>");
+        items.push("<div class=\"card\"><div class=\"label\">Tool inside this Merit</div><p><strong>" + escapeHtml(name) + "</strong></p><p class=\"muted small\">" + escapeHtml(kitId) + " · held inside this Merit</p></div>");
       }
-      el("kitList").innerHTML = "<div class=\"grid\">" + items.join("") + "</div>";
+      el("kitList").innerHTML = kitIntro + "<div class=\"grid\">" + items.join("") + "</div>" +
+        "<p class=\"muted small\">The job gate is the stamp, not the kit. A tool shows what the credential certifies the holder to use; removing a tool takes it out of the Merit but does not close a job the stamps already unlock.</p>";
     }
 
     const lend = m.lend || null;
@@ -137,6 +162,71 @@ async function loadMerit() {
     el("kitList").innerHTML = "";
     el("lendPanel").innerHTML = "";
   }
+  // A link from the Mint page lands here with #testSection so the
+  // new holder goes straight to step two. Scroll again once the
+  // page has rendered, since the async load shifts the layout.
+  if (window.location.hash === "#testSection") {
+    const sec = el("testSection");
+    if (sec) { try { sec.scrollIntoView(); } catch (_) {} }
+  }
+}
+
+// One primary next step, chosen from the Merit's own state:
+// withdrawable balance first, then a blank Merit, then a stamped
+// Merit that can take a job. Only one CTA, the right one.
+function renderNextStep(m) {
+  const wrap = el("nextStep");
+  if (!wrap) return;
+  const stamps = Array.isArray(m.stamps) ? m.stamps : [];
+  const withdrawable = BigInt(m.balance_withdrawable || "0");
+  let num = "1";
+  let label = "Next step";
+  let text = "";
+  let action = "";
+  if (withdrawable > 0n) {
+    num = "6";
+    label = "Next step: get paid out";
+    text = "Your Merit earned " + fmtYocto(m.balance_withdrawable) + " NEAR. Withdraw it to your wallet.";
+    action = "<button type=\"button\" class=\"btn\" id=\"nextStepBtn\">Withdraw " + escapeHtml(fmtYocto(m.balance_withdrawable)) + " NEAR</button>";
+  } else if (stamps.length === 0) {
+    num = "2";
+    label = "Next step: earn your first stamp";
+    text = "This Merit is blank. Pass the test to earn your first stamp and open gated jobs.";
+    action = "<button type=\"button\" class=\"btn\" id=\"nextStepBtn\">Pass the test to earn your first stamp</button>";
+  } else {
+    num = "4";
+    label = "Next step: take a job";
+    text = "Your stamps open gated jobs. Take one your Merit unlocks and get paid for the work.";
+    action = "<a class=\"btn\" id=\"nextStepBtn\" href=\"jobs-offers.html\">Take a job your stamps unlock</a>";
+  }
+  wrap.innerHTML = "<div class=\"next-step\"><div class=\"next-step-card\">" +
+    "<span class=\"next-step-num\" aria-hidden=\"true\">" + num + "</span>" +
+    "<div class=\"next-step-body\"><div class=\"next-step-label\">" + escapeHtml(label) + "</div>" +
+    "<p class=\"next-step-text\">" + escapeHtml(text) + "</p></div>" +
+    action + "</div></div>";
+  const btn = el("nextStepBtn");
+  if (!btn) return;
+  if (withdrawable > 0n) {
+    btn.addEventListener("click", () => withdrawAll(withdrawable, btn));
+  } else if (stamps.length === 0) {
+    btn.addEventListener("click", () => {
+      const sec = el("testSection");
+      if (sec) sec.scrollIntoView({ behavior: "smooth", block: "start" });
+      const ans = el("testAnswer");
+      if (ans) { try { ans.focus(); } catch (_) {} }
+    });
+  }
+}
+
+// Withdraw the whole withdrawable balance in one tap. The
+// confirmation is recorded before the wallet call so it survives
+// the wallet redirect, and shown only when the wallet returns with
+// a transaction hash.
+async function withdrawAll(amount, btn) {
+  if (!needWallet()) return;
+  try { sessionStorage.setItem("merit-withdraw-confirm", fmtYocto(amount)); } catch (_) { /* storage unavailable */ }
+  await sendWithPending(btn, "Sending withdraw. Confirm in your wallet.",
+    "withdraw", { token_id: TOKEN_ID, amount: amount.toString() }, "0");
 }
 
 function needWallet() {
@@ -150,8 +240,10 @@ async function sendWithPending(btn, statusText, method, args, depositYocto, gas)
     await walletCall(contractId(), method, args, depositYocto || "0", gas);
     pageStatus("Sent. It will show here once the chain confirms it.");
     await loadMerit();
+    return true;
   } catch (e) {
     reportFailure(e);
+    return false;
   } finally {
     btn.disabled = false;
   }
@@ -163,6 +255,7 @@ document.getElementById("withdrawForm").addEventListener("submit", async (ev) =>
   let amount;
   try { amount = nearToYocto(el("withdrawAmount").value); } catch (e) { pageStatus(e.message); return; }
   if (amount <= 0n) { pageStatus("Enter an amount above zero."); return; }
+  try { sessionStorage.setItem("merit-withdraw-confirm", fmtYocto(amount)); } catch (_) { /* storage unavailable */ }
   await sendWithPending(el("withdrawBtn"), "Sending withdraw. Confirm in your wallet.",
     "withdraw", { token_id: TOKEN_ID, amount: amount.toString() }, "0");
 });
