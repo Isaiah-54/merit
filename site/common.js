@@ -289,6 +289,162 @@ function applyBrand() {
 }
 document.addEventListener("DOMContentLoaded", applyBrand);
 
+// ---- Level-based badge design ----
+// A badge's design comes from its LEVEL, never its skill or profession.
+// Level 1 is a matte bronze seal with a single chevron, level 2 a
+// polished silver seal with a double chevron, level 3 a rich gold seal
+// with a star and a double rim. The same level looks identical for
+// welding, coding, design, writing or any other skill; the skill is
+// the name written on the badge, not a different design. Levels above
+// 3 carry the level 3 emblem; the number beside the seal still states
+// the true level.
+function sealLevelNum(level) {
+  const n = Number(level) || 1;
+  return n < 1 ? 1 : (n > 3 ? 3 : n);
+}
+function sealClass(level) { return "seal-lv" + sealLevelNum(level); }
+function levelEmblem(level) {
+  const n = sealLevelNum(level);
+  const wrap = (p) => "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">" + p + "</svg>";
+  if (n === 1) return wrap("<path d=\"m5 15.5 7-6.5 7 6.5\"/>");
+  if (n === 2) return wrap("<path d=\"m5 12.5 7-6 7 6\"/><path d=\"m5 18.5 7-6 7 6\"/>");
+  return wrap("<polygon points=\"12 3 14.9 8.9 21.4 9.6 16.6 14.1 17.9 20.5 12 17.2 6.1 20.5 7.4 14.1 2.6 9.6 9.1 8.9\" fill=\"currentColor\" stroke=\"none\"/>");
+}
+function blankEmblem() {
+  return "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"8\" r=\"6\"/><path d=\"M15.477 12.89 17 22l-5-3-5 3 1.523-9.11\"/></svg>";
+}
+// The Merit seal's tier comes from the Merit's level alone:
+// bronze 0-3, silver 4-6, gold 7+. Every Merit at the same tier
+// carries the same seal, whatever skills its stamps name.
+function meritTier(level) {
+  const n = Number(level) || 0;
+  if (n >= 7) return { key: "gold", label: "Gold" };
+  if (n >= 4) return { key: "silver", label: "Silver" };
+  return { key: "bronze", label: "Bronze" };
+}
+let badgeUid = 0;
+function meritBadgeArt(tokenId, level, stamps) {
+  const list = Array.isArray(stamps) ? stamps : [];
+  const tier = meritTier(level);
+  const emblemLevel = tier.key === "gold" ? 3 : tier.key === "silver" ? 2 : 1;
+  const hasStamps = list.length > 0;
+  let pips = "";
+  for (let i = 0; i < Math.min(list.length, 8); i++) pips += "<i></i>";
+  const uid = "badgering" + (++badgeUid);
+  const countLabel = list.length + (list.length === 1 ? " stamp" : " stamps");
+  const ring = "MERIT \u2022 NEAR TESTNET \u2022 LEVEL " + (Number(level) || 0) + " \u2022 " + tier.label.toUpperCase() + " TIER \u2022 ";
+  return "<div class=\"merit-badge tier-" + tier.key + "\" role=\"img\" aria-label=\"" + escapeHtml(tier.label) + " tier Merit seal, level " + escapeHtml(String(level)) + ", " + escapeHtml(countLabel) + "\">" +
+    "<div class=\"badge-core\">" +
+    "<div class=\"badge-icon\">" + (hasStamps ? levelEmblem(emblemLevel) : blankEmblem()) + "</div>" +
+    "<div class=\"badge-skill\">" + (hasStamps ? "Level " + escapeHtml(String(level)) : "No stamps yet") + "</div>" +
+    (pips ? "<div class=\"badge-pips\" aria-hidden=\"true\">" + pips + "</div>" : "") +
+    "</div>" +
+    "<svg class=\"badge-ringtext\" viewBox=\"0 0 120 120\" aria-hidden=\"true\"><defs><path id=\"" + uid + "\" d=\"M60,60 m-51,0 a51,51 0 1,1 102,0 a51,51 0 1,1 -102,0\"/></defs>" +
+    "<text><textPath href=\"#" + uid + "\" textLength=\"316\" lengthAdjust=\"spacingAndGlyphs\">" + escapeHtml(ring) + "</textPath></text></svg>" +
+    "<div class=\"badge-count\">" + escapeHtml(countLabel) + "</div></div>";
+}
+function meritRings() {
+  return "<svg class=\"rings\" viewBox=\"0 0 200 200\" aria-hidden=\"true\" fill=\"none\" stroke=\"#ffffff\">" +
+    "<circle cx=\"100\" cy=\"100\" r=\"96\" stroke-width=\"1\"/><circle cx=\"100\" cy=\"100\" r=\"72\" stroke-width=\"1\"/>" +
+    "<circle cx=\"100\" cy=\"100\" r=\"48\" stroke-width=\"1\"/><circle cx=\"100\" cy=\"100\" r=\"24\" stroke-width=\"1\"/></svg>";
+}
+function levelBadgeHtml(level, stamps, capSuffix) {
+  const tier = meritTier(level);
+  const n = Array.isArray(stamps) ? stamps.length : null;
+  const cap = tier.label + " tier" + (n != null ? " \u2022 " + n + (n === 1 ? " stamp" : " stamps") : "") + (capSuffix || "");
+  return "<div class=\"level-badge\"><div class=\"lb-num tier-" + tier.key + "\"><span>Level</span><b>" + escapeHtml(String(level)) + "</b></div><div class=\"lb-cap\">" + escapeHtml(cap) + "</div></div>";
+}
+
+// ---- Badge catalogue ----
+// What each stamp type certifies, in the order the Badges page shows
+// them. Any stamp skill found onchain that is not listed here still
+// appears, with the generic wording below.
+const BADGE_ORDER = ["merit-basics", "welding", "torch-work", "gate-welding", "repair-welding", "coding", "design", "writing", "data-entry"];
+const BADGE_CERTIFIES = {
+  "merit-basics": "Certifies the foundations of the Merit system \u2014 the holder has been grounded in how Merits, stamps and gated jobs work, and has completed their first recognised work.",
+  "welding": "Certifies welding skill \u2014 joining metal to a standard an issuer has inspected. Higher levels mark heavier, more demanding welding work.",
+  "torch-work": "Certifies torch work \u2014 cutting and heating metal with a torch, done safely and to the line the job required.",
+  "gate-welding": "Certifies gate welding \u2014 fabricating and hanging gates so they swing true, latch cleanly and hold under load.",
+  "repair-welding": "Certifies repair welding \u2014 diagnosing broken metalwork and welding it back to working strength, including work judged through a DAO dispute.",
+  "coding": "Certifies coding skill \u2014 building working web pages and small tools that run in the browser and do what the brief asked.",
+  "design": "Certifies design skill \u2014 creating clear, usable visuals and layouts that match the brief and read well on any screen.",
+  "writing": "Certifies writing skill \u2014 clear, accurate copy written to brief, in the right tone and length for its reader.",
+  "data-entry": "Certifies data entry \u2014 accurate, tidy data work: cleaning, sorting and formatting records without errors."
+};
+// Badges earnable from the open jobs' completion stamps. The live open
+// jobs are read on the Badges page and take precedence; these entries
+// are the fallback so the four online badges still show if a job read
+// fails or a job has just been taken.
+const EARNABLE_FALLBACK = [
+  { skill: "coding", level: 1, jobTitle: "Build a landing page" },
+  { skill: "design", level: 1, jobTitle: "Design a logo" },
+  { skill: "writing", level: 1, jobTitle: "Write a product description" },
+  { skill: "data-entry", level: 1, jobTitle: "Clean a customer list" }
+];
+function badgeCertifies(skill) {
+  return BADGE_CERTIFIES[String(skill || "").toLowerCase()] ||
+    "Certifies " + skill + " \u2014 a skill recorded onchain by a whitelisted stamp issuer for work actually done.";
+}
+// One short line per level actually held onchain, saying what that
+// level of the badge proves. Levels not listed for a skill fall back
+// to the generic band wording in badgeLevelLine.
+const BADGE_LEVEL_LINES = {
+  "merit-basics": {
+    1: "Proves the foundations: how Merits, stamps and gated jobs work, with first recognised work done.",
+    2: "Proves the system used confidently \u2014 earning, lending and taking gated jobs without guidance.",
+    3: "Proves deep command of the Merit system, trusted to model it for new holders."
+  },
+  "welding": {
+    1: "Proves a sound basic weld on straightforward joints \u2014 clean, fused and fit for ordinary work.",
+    2: "Proves independent welding to standard on regular fabrication work, without supervision.",
+    3: "Proves demanding, structural welding to an inspected standard \u2014 the level the toughest gated jobs trust."
+  },
+  "torch-work": {
+    1: "Proves safe torch cutting and heating along a marked line, with a clean edge.",
+    2: "Proves independent torch work on shaped and angled cuts, edges kept clean.",
+    3: "Proves precision torch work on demanding cuts, where one bad cut would ruin the piece."
+  },
+  "gate-welding": {
+    1: "Proves a standard gate fabricated and hung so it swings true and latches cleanly.",
+    2: "Proves larger gates built and fitted independently, aligned and balanced under load.",
+    3: "Proves heavy or custom gate work to an inspected standard, hinges and frame holding under load."
+  },
+  "repair-welding": {
+    1: "Proves a simple weld repair that returns a broken item to everyday use.",
+    2: "Proves a broken piece diagnosed and welded back to working strength without supervision \u2014 including dispute-judged work.",
+    3: "Proves heavily damaged or structural metalwork restored to full strength."
+  },
+  "coding": {
+    1: "Proves a working page or tool built to brief \u2014 code that runs, looks right and does the job asked.",
+    2: "Proves independent coding on a fuller build, structured cleanly and checked before delivery.",
+    3: "Proves demanding builds to an inspected standard \u2014 complex logic handled reliably."
+  },
+  "design": {
+    1: "Proves a clean, usable design delivered to brief \u2014 layout, type and colour working together.",
+    2: "Proves independent design work with a consistent system across screens or assets.",
+    3: "Proves polished, inspected design work \u2014 a complete visual identity or interface to standard."
+  },
+  "writing": {
+    1: "Proves clear copy written to brief \u2014 accurate, readable and in the right tone.",
+    2: "Proves independent writing shaped for its audience, edited and ready to publish.",
+    3: "Proves demanding writing to an inspected standard \u2014 long or specialist work handled with authority."
+  },
+  "data-entry": {
+    1: "Proves accurate data entry on a real list \u2014 cleaned, sorted and formatted without errors.",
+    2: "Proves larger data work handled independently, consistent and error-checked.",
+    3: "Proves demanding data work to an inspected standard \u2014 messy records made reliable at scale."
+  }
+};
+function badgeLevelLine(skill, level) {
+  const per = BADGE_LEVEL_LINES[String(skill || "").toLowerCase()];
+  if (per && per[level]) return per[level];
+  const name = String(skill || "this skill");
+  if (level <= 1) return "Proves the foundation of " + name + " \u2014 the basic skill, shown on real work and checked by the issuer.";
+  if (level === 2) return "Proves " + name + " applied independently, to a standard the issuer has inspected.";
+  if (level === 3) return "Proves " + name + " on demanding work, to an inspected standard.";
+  return "Proves mastery-level " + name + ", well beyond the standard gated jobs require.";
+}
+
 // Test hook used by the headless verifier only: lets the verifier set a
 // connected account and capture the exact call a form builds, without a
 // real wallet. Never used by the site itself.

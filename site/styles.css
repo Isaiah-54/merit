@@ -13,6 +13,14 @@
   --line: #22304a;
   --radius: 12px;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  /* Soft tints for banners and success states (dark theme). */
+  --accent-soft: rgba(232, 185, 62, 0.12);
+  --seal: #d9a83f;
+  --seal-soft: rgba(217, 168, 63, 0.14);
+  --ok: #3fae7f;
+  --ok-soft: rgba(63, 174, 127, 0.14);
+  --danger-soft: rgba(229, 72, 77, 0.14);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 * { box-sizing: border-box; }
 body {
@@ -254,4 +262,235 @@ footer a:hover { color: var(--accent2); }
   background: #123324;
   border-color: var(--accent);
   font-weight: 700;
+}
+
+/* ---- Bottom tab bar (mobile) ---- */
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.tabbar a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 9px 2px 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.tabbar a svg { width: 21px; height: 21px; }
+.tabbar a.active { color: var(--accent); }
+@media (min-width: 760px) { .tabbar { display: none; } }
+
+/* ---- Chips ---- */
+.chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+.chip.locked { background: var(--seal-soft); color: var(--seal); border-color: var(--seal); }
+.chip.open { background: var(--ok-soft); color: var(--ok); border-color: var(--ok); }
+.chip.status { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.chip.not-held { background: var(--panel2); color: var(--muted); border: 1px dashed var(--line); }
+
+/* ---- Key/value rows ---- */
+.kv { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.kv:last-child { border-bottom: 0; }
+.kv b { text-align: right; }
+
+/* ---- Two-column form rows ---- */
+.two-col { display: grid; grid-template-columns: 1fr; gap: 0 12px; }
+@media (min-width: 640px) { .two-col { grid-template-columns: 1fr 1fr; } }
+
+/* ---- Merit switcher (picker chips on the detail page) ---- */
+.merit-switch { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 10px 0 4px; }
+.merit-switch a.chip:hover { text-decoration: none; }
+.merit-switch .chip.active { background: var(--accent); color: #06130b; border-color: var(--accent); }
+
+/* ---- The Merit seal: identity from the level tier alone ---- */
+.merit-badge { position: relative; flex: none; width: 118px; height: 118px; border-radius: 50%; padding: 9px; filter: drop-shadow(0 7px 9px rgba(0, 0, 0, 0.4)); }
+.merit-badge.tier-gold { background: radial-gradient(circle at 32% 26%, #f8dc82 0%, #eec84e 32%, #c9931d 62%, #9a6c10 88%, #7d560b 100%); box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.7), inset 0 -6px 9px rgba(96, 54, 0, 0.5), inset 0 0 0 2px rgba(125, 86, 11, 0.55); }
+.merit-badge.tier-silver { background: radial-gradient(circle at 32% 26%, #ffffff 0%, #e3e7ec 32%, #b9c1cb 62%, #8b96a3 88%, #6e7987 100%); box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.85), inset 0 -6px 9px rgba(52, 64, 78, 0.5), inset 0 0 0 2px rgba(110, 121, 135, 0.55); }
+.merit-badge.tier-bronze { background: radial-gradient(circle at 32% 26%, #f6c48b 0%, #e09a52 32%, #b06a2c 62%, #7f4214 88%, #5f2f0d 100%); box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.65), inset 0 -6px 9px rgba(80, 40, 4, 0.55), inset 0 0 0 2px rgba(95, 47, 13, 0.55); }
+.badge-core { position: relative; width: 100%; height: 100%; border-radius: 50%; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; color: #fff; text-align: center; background: radial-gradient(circle at 32% 26%, #1d9e6b 0%, #0b3524 78%); box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.45), inset 0 -3px 6px rgba(255, 255, 255, 0.18); }
+.badge-core::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.09) 0 6px, rgba(255, 255, 255, 0) 6px 13px); }
+.badge-core > * { position: relative; }
+.badge-icon svg { width: 34px; height: 34px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5)); }
+.badge-skill { font-size: 9px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; line-height: 1.15; max-width: 82%; }
+.badge-pips { display: flex; gap: 3px; justify-content: center; margin-top: 3px; min-height: 6px; }
+.badge-pips i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, 0.92); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); }
+.badge-ringtext { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.badge-ringtext text { font-family: system-ui, sans-serif; font-size: 8px; font-weight: 700; letter-spacing: 0.13em; fill: rgba(74, 48, 2, 0.78); }
+.merit-badge.tier-silver .badge-ringtext text { fill: rgba(43, 53, 64, 0.8); }
+.badge-count { position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%); background: #f3efe2; color: #1c2420; border: 1px solid rgba(0, 0, 0, 0.25); font-size: 11px; font-weight: 800; letter-spacing: 0.02em; padding: 2px 10px; border-radius: 999px; white-space: nowrap; box-shadow: 0 3px 7px rgba(0, 0, 0, 0.35); }
+.tier-chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; vertical-align: middle; }
+.tier-chip.tier-gold { background: #f7ecd2; color: #8a5f10; }
+.tier-chip.tier-silver { background: #e8ecf0; color: #4c5a68; }
+.tier-chip.tier-bronze { background: #f6e3cd; color: #7f4214; }
+
+/* ---- Level badge (round number badge beside the credential card) ---- */
+.level-badge { flex: none; margin-left: auto; text-align: center; }
+.lb-num { width: 86px; height: 86px; border-radius: 50%; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle at 32% 26%, #f8dc82 0%, #eec84e 32%, #c9931d 62%, #9a6c10 88%, #7d560b 100%); box-shadow: 0 7px 14px rgba(0, 0, 0, 0.35), inset 0 2px 3px rgba(255, 255, 255, 0.7), inset 0 -6px 9px rgba(96, 54, 0, 0.5), inset 0 0 0 3px rgba(125, 86, 11, 0.55), inset 0 0 0 6px rgba(255, 238, 175, 0.38); text-shadow: 0 1px 2px rgba(96, 54, 0, 0.55); }
+.lb-num b { font-size: 2.05rem; line-height: 1; font-weight: 800; }
+.lb-num span { font-size: 9px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; }
+.lb-cap { font-size: 12px; color: var(--muted); margin-top: 6px; max-width: 140px; }
+.lb-num.tier-gold { background: radial-gradient(circle at 32% 26%, #f8dc82 0%, #eec84e 32%, #c9931d 62%, #9a6c10 88%, #7d560b 100%); box-shadow: 0 7px 14px rgba(0, 0, 0, 0.35), inset 0 2px 3px rgba(255, 255, 255, 0.7), inset 0 -6px 9px rgba(96, 54, 0, 0.5), inset 0 0 0 3px rgba(125, 86, 11, 0.55), inset 0 0 0 6px rgba(255, 238, 175, 0.38); text-shadow: 0 1px 2px rgba(96, 54, 0, 0.55); }
+.lb-num.tier-silver { background: radial-gradient(circle at 32% 26%, #ffffff 0%, #e3e7ec 32%, #b9c1cb 62%, #8b96a3 88%, #6e7987 100%); box-shadow: 0 7px 14px rgba(0, 0, 0, 0.35), inset 0 2px 3px rgba(255, 255, 255, 0.85), inset 0 -6px 9px rgba(52, 64, 78, 0.5), inset 0 0 0 3px rgba(110, 121, 135, 0.55), inset 0 0 0 6px rgba(240, 244, 248, 0.4); text-shadow: 0 1px 2px rgba(52, 64, 78, 0.55); }
+.lb-num.tier-bronze { background: radial-gradient(circle at 32% 26%, #f6c48b 0%, #e09a52 32%, #b06a2c 62%, #7f4214 88%, #5f2f0d 100%); box-shadow: 0 7px 14px rgba(0, 0, 0, 0.35), inset 0 2px 3px rgba(255, 255, 255, 0.65), inset 0 -6px 9px rgba(80, 40, 4, 0.55), inset 0 0 0 3px rgba(95, 47, 13, 0.55), inset 0 0 0 6px rgba(255, 219, 170, 0.35); text-shadow: 0 1px 2px rgba(80, 40, 4, 0.6); }
+@media (max-width: 560px) { .level-badge { margin-left: 0; } }
+
+/* ---- Merit credential card ---- */
+.merit-card { position: relative; overflow: hidden; border-radius: 18px; background: #0d3b2a; border: 1px solid #082a1d; color: #f3efe2; padding: 22px; box-shadow: var(--shadow); }
+.merit-card .rings { position: absolute; right: -80px; top: -90px; width: 300px; height: 300px; opacity: 0.14; pointer-events: none; }
+.merit-card-in { position: relative; display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+.mc-label { font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #bcd8c6; }
+.mc-id { font-size: 28px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.15; margin: 2px 0; }
+.mc-meta { font-size: 14px; color: #bcd8c6; }
+.mc-meta .mono { color: #f3efe2; }
+
+/* ---- Stamp seals: design from the LEVEL, never the skill ---- */
+.stamp-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); }
+.stamp-badge { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 12px 13px; text-align: center; box-shadow: var(--shadow); }
+.stamp-seal { position: relative; width: 78px; height: 78px; margin: 0 auto 10px; border-radius: 50%; color: #6b4503; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 32% 26%, #f8dc82 0%, #eec84e 32%, #c9931d 62%, #9a6c10 88%, #7d560b 100%); box-shadow: 0 7px 14px rgba(96, 64, 4, 0.38), 0 2px 3px rgba(96, 64, 4, 0.45), inset 0 2px 3px rgba(255, 255, 255, 0.7), inset 0 -6px 9px rgba(96, 54, 0, 0.5), inset 0 0 0 3px rgba(125, 86, 11, 0.55), inset 0 0 0 6px rgba(255, 238, 175, 0.38); }
+.stamp-seal.seal-lv1 { color: #4a2a08; background: radial-gradient(circle at 32% 26%, #eec39a 0%, #cf8a4a 34%, #a05e24 64%, #71400f 90%, #57300a 100%); box-shadow: 0 4px 9px rgba(80, 44, 6, 0.35), 0 1px 2px rgba(80, 44, 6, 0.4), inset 0 2px 3px rgba(255, 255, 255, 0.55), inset 0 -5px 8px rgba(80, 40, 4, 0.5), inset 0 0 0 3px rgba(87, 48, 10, 0.55), inset 0 0 0 6px rgba(255, 219, 170, 0.28); }
+.stamp-seal.seal-lv2 { color: #33404d; background: radial-gradient(circle at 32% 26%, #ffffff 0%, #e8edf1 30%, #bcc6cf 60%, #8b96a3 88%, #67727f 100%); box-shadow: 0 6px 12px rgba(40, 52, 64, 0.35), 0 2px 3px rgba(40, 52, 64, 0.4), inset 0 2px 3px rgba(255, 255, 255, 0.9), inset 0 -6px 9px rgba(52, 64, 78, 0.5), inset 0 0 0 3px rgba(103, 114, 127, 0.55), inset 0 0 0 6px rgba(240, 244, 248, 0.45); }
+.stamp-seal.seal-lv3 { color: #6b4503; background: radial-gradient(circle at 32% 26%, #fbe99b 0%, #f2cd52 30%, #d29f22 60%, #a3740f 86%, #7d560b 100%); box-shadow: 0 8px 16px rgba(96, 64, 4, 0.42), 0 2px 3px rgba(96, 64, 4, 0.45), inset 0 2px 3px rgba(255, 255, 255, 0.75), inset 0 -6px 9px rgba(96, 54, 0, 0.5), inset 0 0 0 3px rgba(125, 86, 11, 0.6), inset 0 0 0 6px rgba(255, 238, 175, 0.45), 0 0 0 2px rgba(247, 236, 210, 0.85), 0 0 0 4px rgba(125, 86, 11, 0.45); }
+.stamp-seal::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 46%); }
+.stamp-seal::after { content: ""; position: absolute; inset: 10px; border-radius: 50%; box-shadow: inset 0 2px 3px rgba(96, 54, 0, 0.55), inset 0 -2px 3px rgba(255, 246, 200, 0.55), 0 0 0 1px rgba(125, 86, 11, 0.5); }
+.stamp-seal.seal-lv1::after { box-shadow: inset 0 2px 3px rgba(80, 40, 4, 0.5), inset 0 -2px 3px rgba(255, 226, 180, 0.45), 0 0 0 1px rgba(87, 48, 10, 0.5); }
+.stamp-seal.seal-lv2::after { box-shadow: inset 0 2px 3px rgba(52, 64, 78, 0.5), inset 0 -2px 3px rgba(255, 255, 255, 0.6), 0 0 0 1px rgba(103, 114, 127, 0.5); }
+.stamp-seal.seal-lv3::after { inset: 8px; box-shadow: inset 0 2px 3px rgba(96, 54, 0, 0.55), inset 0 -2px 3px rgba(255, 246, 200, 0.6), 0 0 0 1px rgba(125, 86, 11, 0.55), inset 0 0 0 3px rgba(255, 238, 175, 0.35); }
+.stamp-seal svg { position: relative; z-index: 1; width: 32px; height: 32px; filter: drop-shadow(0 1px 0 rgba(255, 242, 190, 0.75)) drop-shadow(0 -1px 1px rgba(96, 54, 0, 0.5)); }
+.stamp-seal.seal-lv1 svg { filter: drop-shadow(0 1px 0 rgba(255, 226, 180, 0.6)) drop-shadow(0 -1px 1px rgba(80, 40, 4, 0.5)); }
+.stamp-seal.seal-lv2 svg { filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.8)) drop-shadow(0 -1px 1px rgba(52, 64, 78, 0.5)); }
+.stamp-badge .sk { font-weight: 700; line-height: 1.25; }
+.stamp-pips { display: flex; gap: 4px; justify-content: center; margin: 7px 0 3px; min-height: 9px; }
+.stamp-pips i { width: 9px; height: 9px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #f8dc82, #b97f16 78%); box-shadow: 0 1px 2px rgba(96, 64, 4, 0.45), inset 0 -1px 1px rgba(96, 54, 0, 0.45); }
+.stamp-pips.pips-lv1 i { background: radial-gradient(circle at 35% 30%, #f6c48b, #a05e24 78%); box-shadow: 0 1px 2px rgba(80, 44, 6, 0.45), inset 0 -1px 1px rgba(80, 40, 4, 0.45); }
+.stamp-pips.pips-lv2 i { background: radial-gradient(circle at 35% 30%, #ffffff, #8b96a3 78%); box-shadow: 0 1px 2px rgba(40, 52, 64, 0.4), inset 0 -1px 1px rgba(52, 64, 78, 0.45); }
+.stamp-badge .lv { font-size: 13px; font-weight: 700; color: var(--seal); }
+.stamp-badge .lv.lv1 { color: #a05e24; }
+.stamp-badge .lv.lv2 { color: #66727e; }
+
+/* ---- Merit list card visual (All Merits on Home) ---- */
+.merit-list-visual { position: relative; overflow: hidden; background: #0d3b2a; border: 1px solid #082a1d; border-radius: 12px; padding: 16px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; color: #f3efe2; }
+.merit-list-visual .rings { position: absolute; right: -60px; top: -72px; width: 220px; height: 220px; opacity: 0.14; pointer-events: none; }
+.merit-list-visual > * { position: relative; }
+.merit-list-visual .merit-badge { width: 88px; height: 88px; padding: 7px; }
+.merit-list-visual .badge-icon svg { width: 24px; height: 24px; }
+.merit-list-visual .badge-skill { font-size: 7px; }
+.merit-list-visual .badge-ringtext text { font-size: 8.5px; }
+.merit-list-visual .badge-count { bottom: -8px; font-size: 10px; padding: 1px 8px; }
+.merit-list-visual .level-badge { margin-left: auto; }
+.merit-list-visual .lb-num { width: 76px; height: 76px; }
+.merit-list-visual .lb-num b { font-size: 1.8rem; }
+.list-visual-meta { min-width: 150px; flex: 1; }
+.list-visual-id { font-size: 21px; font-weight: 800; line-height: 1.2; color: #f3efe2; margin: 2px 0; }
+.list-visual-sub { font-size: 14px; color: #bcd8c6; }
+@media (max-width: 560px) { .merit-list-visual .level-badge { margin-left: auto; } }
+
+/* ---- Badges gallery page ---- */
+.badge-grid { display: grid; gap: 14px; grid-template-columns: 1fr; }
+@media (min-width: 640px) { .badge-grid { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 960px) { .badge-grid { grid-template-columns: repeat(3, 1fr); } }
+.badge-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 16px 14px; box-shadow: var(--shadow); text-align: center; }
+.badge-card .stamp-seal { width: 94px; height: 94px; }
+.badge-card .stamp-seal svg { width: 38px; height: 38px; }
+.badge-card h3 { margin: 0.35em 0 0.2em; font-size: 18px; }
+.badge-card .certifies { color: var(--muted); font-size: 15px; margin: 0.2em 0 0.6em; text-align: left; }
+.badge-card .issued { font-size: 14px; margin: 0.3em 0; text-align: left; }
+.badge-levels { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 6px; text-align: left; }
+.level-line { display: flex; gap: 9px; align-items: baseline; font-size: 14px; line-height: 1.45; padding: 5px 0; border-bottom: 1px dashed var(--line); }
+.level-line:last-child { border-bottom: 0; }
+.lv-tag { flex: none; font-weight: 800; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--seal); white-space: nowrap; }
+.lv-tag.lv1 { color: #a05e24; }
+.lv-tag.lv2 { color: #66727e; }
+.mini-seal { flex: none; width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; align-self: center; color: #6b4503; box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.65), inset 0 -2px 3px rgba(0, 0, 0, 0.28), inset 0 0 0 2px rgba(0, 0, 0, 0.16), 0 1px 3px rgba(0, 0, 0, 0.3); }
+.mini-seal svg { width: 14px; height: 14px; }
+.mini-seal.seal-lv1 { color: #4a2a08; background: radial-gradient(circle at 32% 26%, #eec39a 0%, #cf8a4a 40%, #71400f 100%); }
+.mini-seal.seal-lv2 { color: #33404d; background: radial-gradient(circle at 32% 26%, #ffffff 0%, #bcc6cf 45%, #67727f 100%); }
+.mini-seal.seal-lv3 { color: #6b4503; background: radial-gradient(circle at 32% 26%, #fbe99b 0%, #d29f22 55%, #7d560b 100%); }
+.badge-holders { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 10px; text-align: left; }
+.badge-holders .bh-label { font-size: 12px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.holder-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.holder-row:last-child { border-bottom: 0; }
+.holder-lv { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--seal); font-size: 14px; white-space: nowrap; }
+.holder-pips { display: inline-flex; gap: 3px; }
+.holder-pips i { width: 7px; height: 7px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #f8dc82, #b97f16 78%); box-shadow: 0 1px 2px rgba(96, 64, 4, 0.45), inset 0 -1px 1px rgba(96, 54, 0, 0.45); }
+.holder-pips.pips-lv1 i { background: radial-gradient(circle at 35% 30%, #f6c48b, #a05e24 78%); box-shadow: 0 1px 2px rgba(80, 44, 6, 0.45), inset 0 -1px 1px rgba(80, 40, 4, 0.45); }
+.holder-pips.pips-lv2 i { background: radial-gradient(circle at 35% 30%, #ffffff, #8b96a3 78%); box-shadow: 0 1px 2px rgba(40, 52, 64, 0.4), inset 0 -1px 1px rgba(52, 64, 78, 0.45); }
+.badge-section-title { font-size: 21px; margin: 1.4em 0 0.2em; }
+.badge-section-title:first-child { margin-top: 0.4em; }
+.badge-section-note { color: var(--muted); font-size: 15px; margin: 0.2em 0 12px; max-width: 62ch; }
+.badge-card.earnable { border-style: dashed; }
+.earns-from { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; text-align: left; font-size: 15px; }
+.earns-from .ef-label { font-size: 12px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+.not-held-note { margin: 10px 0 2px; padding: 9px 11px; border-radius: 10px; background: var(--panel2); color: var(--muted); font-size: 14px; font-weight: 600; text-align: left; }
+
+/* ---- Jobs hub ---- */
+.jobs-header { border-bottom: 1px solid var(--line); padding-bottom: 18px; margin-bottom: 6px; }
+.jobs-header h1 { margin-top: 0; }
+.jobs-counts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; max-width: 520px; }
+.jobs-count { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 13px 16px; box-shadow: var(--shadow); }
+.jobs-count .num { font-size: 27px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
+.jobs-count .cap { font-size: 13px; color: var(--muted); font-weight: 600; margin-top: 4px; }
+.jobs-hub-grid { display: grid; gap: 14px; grid-template-columns: 1fr; margin-top: 18px; }
+@media (min-width: 760px) { .jobs-hub-grid { grid-template-columns: repeat(3, 1fr); } }
+.hub-card { display: block; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 18px; box-shadow: var(--shadow); color: var(--text); text-decoration: none; }
+.hub-card:hover { text-decoration: none; border-color: var(--accent); }
+.hub-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.hub-card h2 { margin: 0.45em 0 0.3em; font-size: 21px; }
+.hub-card p { margin: 0 0 14px; color: var(--muted); font-size: 15px; }
+.hub-card .hub-go { font-weight: 700; color: var(--accent); }
+.subpage-head { margin-bottom: 4px; }
+.section-num { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: #06130b; font-weight: 800; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+.count-badge { flex: none; margin-left: auto; background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.job-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.job-card-top .label { margin-bottom: 0; }
+.job-subhead { font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 20px 0 10px; }
+.outcome-row { display: flex; gap: 10px; align-items: center; background: var(--accent-soft); border-radius: 10px; padding: 10px 12px; margin-top: 10px; font-size: 15px; }
+.outcome-row .stamp-seal { width: 40px; height: 40px; margin: 0; flex: none; }
+.outcome-row .stamp-seal svg { width: 18px; height: 18px; }
+.vote-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.vote-row .btn { flex: 1; min-width: 130px; }
+.refusal { background: var(--danger-soft); border: 1px solid var(--danger); border-radius: 10px; padding: 11px 14px; font-weight: 600; }
+.granted { background: var(--ok-soft); border: 1px solid var(--ok); border-radius: 10px; padding: 11px 14px; font-weight: 600; }
+.msg { min-height: 1.2em; }
+
+/* ---- Job offers search ---- */
+.job-search-panel { margin-bottom: 14px; }
+.job-search-panel label { display: block; font-weight: 700; font-size: 15px; margin: 0 0 6px; }
+.job-search-row { display: flex; gap: 8px; align-items: stretch; }
+.job-search-row input { flex: 1; min-width: 0; }
+.job-search-row .btn { flex: none; white-space: nowrap; }
+.job-search-panel .hint { margin: 8px 0 0; }
+.job-search-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.job-search-chip { appearance: none; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); }
+.job-search-chip:hover { border-color: var(--accent); color: var(--accent); }
+.job-search-chip.active { background: var(--accent); border-color: var(--accent); color: #06130b; }
+.job-search-status { margin: 10px 0 0; font-size: 14px; font-weight: 600; color: var(--muted); min-height: 1.3em; }
+.job-pay-banner { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 10px; padding: 10px 12px; margin: 10px 0 12px; }
+.job-pay-banner .pay-label { font-size: 13px; font-weight: 800; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); }
+.job-pay-banner .pay-amount { font-size: 25px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; color: var(--text); }
+.job-pay-banner .pay-note { font-size: 13px; color: var(--muted); margin-left: auto; text-align: right; }
+@media (max-width: 480px) {
+  .job-search-row { flex-wrap: wrap; }
+  .job-search-row input { flex: 1 1 100%; }
+  .job-search-row .btn { flex: 1 1 auto; }
+  .job-pay-banner .pay-note { margin-left: 0; text-align: left; }
 }

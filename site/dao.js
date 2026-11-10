@@ -1,8 +1,11 @@
 // DAO proposals page: list the Merit DAO proposals, show the job,
 // proposed outcome, acceptance criteria and both sides evidence
 // hashes for each, and let council members vote Approve or Reject.
-// Voting calls the DAO act_proposal with 1 yoctoNEAR, through the
-// same wallet flow as every other write on this site.
+// Voting calls the DAO act_proposal with 0 deposit and 300 TGas,
+// through the same wallet flow as every other write on this site.
+// act_proposal rejects any deposit, and the threshold-reaching vote
+// executes the proposal's own call inside the same transaction,
+// so 100 TGas is not enough.
 let daoPolicy = null;
 let daoProposals = [];
 let daoJobs = {};
@@ -93,8 +96,8 @@ function buildVoteCall(id, action) {
   return {
     method: "act_proposal",
     args: { id: id, action: action },
-    depositYocto: "1",
-    gas: window.GAS_100,
+    depositYocto: "0",
+    gas: window.GAS_300,
   };
 }
 

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Merit: Completed jobs</title>
+<link rel="stylesheet" href="styles.css">
+<script src="config.js"></script>
+<script src="fastnear-wallet.bundle.js"></script>
+<script src="failure.js"></script>
+<script src="common.js"></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><span data-brand>Merit</span></a>
+  <nav>
+    <a href="index.html">Merits</a>
+    <a href="mint.html">Mint</a>
+    <a href="jobs.html">Jobs</a>
+    <a href="dao.html">DAO</a>
+    <a href="badges.html">Badges</a>
+  </nav>
+  <button id="connectBtn">Connect wallet</button>
+</header>
+<main>
+  <p id="pageStatus"></p>
+  <p style="margin:0 0 4px"><a href="jobs.html">← Jobs</a></p>
+  <div class="subpage-head">
+    <h1>Completed jobs</h1>
+    <p class="lede">Finished work and what it earned: the amount paid out of escrow, the stamp issued on completion, and the Merit that did the work.</p>
+  </div>
+  <p class="muted small">A disputed job goes to the Merit DAO. <a href="dao.html">See the DAO proposals</a>.</p>
+  <div id="completedJobList"><p class="muted">Loading completed jobs from the chain…</p></div>
+</main>
+<footer>
+  <span data-brand>Merit</span> runs on NEAR testnet. All figures shown are
+  real onchain state, never simulated.
+</footer>
+<nav class="tabbar" id="tabBar">
+  <a href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>Home</a>
+  <a href="mint.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Mint</a>
+  <a href="merit.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="6"/><path d="m8.5 14-2 7 5.5-3 5.5 3-2-7"/></svg>Merit</a>
+  <a href="jobs.html" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Jobs</a>
+  <a href="dao.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3"/><path d="M5 21h14"/><path d="M12 6v15"/><path d="M5 6l-2.5 6a3.5 3.5 0 0 0 5 0L5 6Z"/><path d="M19 6l-2.5 6a3.5 3.5 0 0 0 5 0L19 6Z"/><path d="M2.5 6h19"/></svg>DAO</a>
+  <a href="badges.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 3 14.7 8.6 20.8 9.3 16.2 13.5 17.5 19.5 12 16.4 6.5 19.5 7.8 13.5 3.2 9.3 9.3 8.6 12 3"/></svg>Badges</a>
+</nav>
+<script src="jobs.js"></script>
+<script>
+document.getElementById("connectBtn").addEventListener("click", toggleWallet);
+initWallet();
+</script>
+</body>
+</html>

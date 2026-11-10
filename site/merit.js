@@ -1,9 +1,11 @@
 // Merit detail page: stamps, level, account balance, kit, lend state,
 // plus the withdraw, lend, stamp and test actions. Reads go through RPC;
-// writes go through the wallet.
+// writes go through the wallet. Defaults to merit-2, with a switcher
+// to every other Merit.
 const params = new URLSearchParams(window.location.search);
-const TOKEN_ID = params.get("id") || "";
+let TOKEN_ID = params.get("id") || "";
 let meritData = null;
+let meritTokensCache = [];
 
 function meritAccountId() {
   return TOKEN_ID + "." + window.CONTRACT_ID;
@@ -21,39 +23,84 @@ function dateInputToNs(dateStr) {
 }
 
 async function loadMerit() {
+  const picker = el("meritPicker");
+  try { meritTokensCache = await view("nft_tokens", { from_index: "0", limit: 50 }) || []; }
+  catch (_) { meritTokensCache = []; }
   if (!TOKEN_ID) {
-    el("meritSummary").innerHTML = "<p class=\"muted\">No Merit id in the link. Go back to the list and pick one.</p>";
-    return;
+    if (!meritTokensCache.length) {
+      el("meritTitle").textContent = "Merit";
+      if (picker) picker.innerHTML = "";
+      el("meritSummary").innerHTML = "<div class=\"panel\"><p style=\"margin:0\">No Merits exist yet. <a href=\"mint.html\">Mint one on the Mint page</a>.</p></div>";
+      el("stampList").innerHTML = ""; el("balancePanel").innerHTML = "";
+      el("kitList").innerHTML = ""; el("lendPanel").innerHTML = "";
+      return;
+    }
+    // No token chosen in the link: open the demo Merit, merit-2, by
+    // default instead of leaving the visitor on the first token.
+    const def = meritTokensCache.find((t) => t.token_id === "merit-2") || meritTokensCache[0];
+    TOKEN_ID = def.token_id;
+  }
+  if (picker) {
+    picker.innerHTML = meritTokensCache.length
+      ? "<div class=\"merit-switch\"><span class=\"muted small\"><strong>Viewing:</strong></span>" + meritTokensCache.map((t) =>
+          "<a class=\"chip" + (t.token_id === TOKEN_ID ? " active" : "") + "\" href=\"merit.html?id=" + encodeURIComponent(t.token_id) + "\">" + escapeHtml(t.token_id) + "</a>").join("") + "</div>"
+      : "";
   }
   document.getElementById("meritTitle").textContent = TOKEN_ID;
   try {
     const m = await view("get_merit", { token_id: TOKEN_ID });
     meritData = m;
-    const locked = m.locked ? "Locked" : "Open";
-    el("meritSummary").innerHTML =
-      "<div class=\"grid\">" +
-      "<div class=\"card tone-blue\"><div class=\"label\">Owner</div><p>" + escapeHtml(m.owner_id || "Not recorded yet") + "</p></div>" +
-      "<div class=\"card tone-green\"><div class=\"label\">Level</div><div class=\"big\">" + escapeHtml(String(m.level != null ? m.level : 0)) + "</div></div>" +
-      "<div class=\"card tone-amber\"><div class=\"label\">State</div><p>" + escapeHtml(locked) + "</p>" +
-      "<p class=\"muted small\">" + (m.locked ? "Stamped, so it cannot be sold. It can still be lent." : "Not stamped yet, so it can still be sold.") + "</p></div>" +
-      "<div class=\"card tone-purple\"><div class=\"label\">Own account</div><p>" + escapeHtml(meritAccountId()) + "</p></div>" +
-      "</div>";
-
+    const locked = !!m.locked;
+    const level = m.level != null ? m.level : 0;
+    const tok = meritTokensCache.find((t) => t.token_id === TOKEN_ID);
+    const cardTitle = (tok && tok.metadata && tok.metadata.title) || TOKEN_ID;
     const stamps = m.stamps || [];
-    if (stamps.length === 0) {
-      el("stampList").innerHTML = "<p class=\"muted\">No stamps yet. This Merit is blank.</p>";
+    const tier = meritTier(level);
+    el("meritSummary").innerHTML =
+      "<div class=\"merit-card\">" + meritRings() +
+      "<div class=\"merit-card-in\">" + meritBadgeArt(TOKEN_ID, level, stamps) +
+      "<div style=\"min-width:200px;flex:1\">" +
+      "<div class=\"mc-label\">Merit credential \u2022 NEAR testnet</div>" +
+      "<div class=\"mc-id mono\">" + escapeHtml(TOKEN_ID) + "</div>" +
+      (cardTitle !== TOKEN_ID ? "<div class=\"mc-meta\">" + escapeHtml(cardTitle) + "</div>" : "") +
+      "<div class=\"mc-meta\">Owner <span class=\"mono\">" + escapeHtml(m.owner_id || "Not recorded") + "</span></div>" +
+      "<div class=\"mc-meta\">Own sub-account <span class=\"mono\">" + escapeHtml(meritAccountId()) + "</span>, where job payments land</div>" +
+      "<div class=\"mc-meta\">" + escapeHtml(tier.label) + " tier \u2022 " + stamps.length + (stamps.length === 1 ? " stamp" : " stamps") + " earned. The seal follows the level: every Merit at this level carries the same seal, whatever its skills</div>" +
+      "<p style=\"margin:10px 0 0\"><span class=\"tier-chip tier-" + tier.key + "\">" + escapeHtml(tier.label) + " tier</span> &nbsp;<span class=\"chip " + (locked ? "locked" : "open") + "\">" + (locked ? "Locked, stamped, cannot be sold" : "Open, not stamped yet") + "</span></p>" +
+      "</div>" +
+      levelBadgeHtml(level, stamps, ", computed onchain from its stamps") +
+      "</div></div>";
+
+    if (!stamps.length) {
+      el("stampList").innerHTML = "<div class=\"panel\"><p style=\"margin:0\">No stamps yet. This Merit is blank. It cannot take a gated job until a whitelisted issuer stamps it.</p></div>";
     } else {
-      const rows = stamps.map((s) => {
-        const name = s.issuer_name ? "<strong>" + escapeHtml(s.issuer_name) + "</strong><br><span class=\"muted small\">" + escapeHtml(s.issuer || "") + "</span>" : escapeHtml(s.issuer || "");
-        return "<tr><td>" + escapeHtml(s.skill) + "</td><td>" + escapeHtml(String(s.level)) + "</td><td>" + name + "</td><td>" + escapeHtml(s.stamped_at != null ? fmtNsDate(s.stamped_at) : "") + "</td></tr>";
-      }).join("");
-      el("stampList").innerHTML = "<div class=\"tableScroll\"><table><thead><tr><th>Skill</th><th>Level</th><th>Issuer</th><th>Stamped</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+      el("stampList").innerHTML = "<div class=\"stamp-grid\">" + stamps.map((s) => {
+        const lvl = Number(s.level) || 0;
+        let pips = "";
+        for (let i = 0; i < Math.min(lvl, 10); i++) pips += "<i></i>";
+        return "<div class=\"stamp-badge\"><div class=\"stamp-seal " + sealClass(lvl) + "\">" + levelEmblem(lvl) + "</div>" +
+          "<div class=\"sk\">" + escapeHtml(s.skill) + "</div>" +
+          "<div class=\"stamp-pips pips-lv" + sealLevelNum(lvl) + "\" aria-hidden=\"true\">" + pips + "</div>" +
+          "<div class=\"lv lv" + sealLevelNum(lvl) + "\">Level " + escapeHtml(String(s.level)) + "</div>" +
+          "<p class=\"muted small\" style=\"margin:6px 0 0\">" +
+          (s.issuer_name ? escapeHtml(s.issuer_name) : "<span class=\"mono\">" + escapeHtml(s.issuer || "") + "</span>") +
+          (s.stamped_at != null ? "<br>" + escapeHtml(fmtNsDate(s.stamped_at)) : "") + "</p></div>";
+      }).join("") + "</div>";
     }
 
     el("balancePanel").innerHTML =
-      "<p>Withdrawable: <strong>" + escapeHtml(fmtYocto(m.balance_withdrawable || "0")) + " NEAR</strong></p>" +
-      "<p>Retained: <strong>" + escapeHtml(fmtYocto(m.balance_retained || "0")) + " NEAR</strong></p>" +
-      "<p class=\"muted small\">The Merit keeps 5 percent of every job it unlocks. The retained part stays in its own account.</p>";
+      "<div class=\"kv\"><span>Sub-account balance</span><b id=\"subBal\">\u2026</b></div>" +
+      "<div class=\"kv\"><span>Withdrawable (95%)</span><b>" + escapeHtml(fmtYocto(m.balance_withdrawable || "0")) + " NEAR</b></div>" +
+      "<div class=\"kv\"><span>Retained by the Merit (5%)</span><b>" + escapeHtml(fmtYocto(m.balance_retained || "0")) + " NEAR</b></div>" +
+      "<p class=\"muted small\" style=\"margin-bottom:0\">Job payments split 95% withdrawable / 5% retained, enforced by the contract. The retained part stays in the Merit's own account.</p>";
+    try {
+      const bal = await rpcAccountBalance(meritAccountId());
+      const b = el("subBal");
+      if (b) b.textContent = fmtYocto(bal) + " NEAR";
+    } catch (_) {
+      const b = el("subBal");
+      if (b) b.textContent = "Not readable";
+    }
 
     const kit = m.kit || [];
     if (kit.length === 0) {
