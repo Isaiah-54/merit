@@ -10,12 +10,15 @@ function escapeHtml(s) {
 }
 // Merit token id allowlist: lowercase letters, digits, dots and
 // underscores only, 1-64 chars, starting with a letter or digit.
+// No spaces: a space is the most common mistake, so it gets its own
+// message naming the fix.
 function validateTokenId(id) {
   const s = String(id || "");
   if (!s) return "The token id is empty.";
   if (s.length > 64) return "The token id must be 64 characters or fewer.";
+  if (s.includes(" ")) return "The token id cannot contain spaces. Use lowercase letters, digits, dots and underscores only, for example ai-agent instead of ai agent.";
   if (!/^[a-z0-9][a-z0-9._-]*$/.test(s)) {
-    return "The token id can only use lowercase letters, digits, dots and underscores, and must start with a letter or digit.";
+    return "The token id can only use lowercase letters, digits, dots and underscores, with no spaces, and must start with a letter or digit.";
   }
   return "";
 }
