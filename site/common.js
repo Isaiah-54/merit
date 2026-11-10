@@ -176,11 +176,32 @@ function txStatusHtml(msg, hash, nextStep) {
 }
 // Show a finished transaction in the page status line, with hash
 // link and next step. Falls back to plain text when there is no
-// status element or no hash.
+// status element or no hash. The status is also saved to
+// sessionStorage (with the page it belongs to) so the hash and its
+// explorer link survive a page reload within the same tab; it is
+// restored by restoreTxStatus() in initWallet().
 function setTxStatus(msg, hash, nextStep) {
   const s = el("pageStatus");
   if (!s) return;
   s.innerHTML = txStatusHtml(msg, hash, nextStep);
+  try {
+    sessionStorage.setItem("merit-last-tx", JSON.stringify({ msg: msg || "", hash: hash || "", nextStep: nextStep || "", page: window.location.pathname || "" }));
+  } catch (_) { /* storage unavailable */ }
+}
+// Restore the last transaction status saved by setTxStatus, so the
+// hash survives a page reload within the same tab. Only restores
+// when the saved status belongs to this page, so a transaction from
+// another page does not show up here. Called from initWallet()
+// when the page was not reached via a wallet redirect (a redirect
+// carries its own transactionHashes, which take precedence).
+function restoreTxStatus() {
+  let saved = null;
+  try { saved = JSON.parse(sessionStorage.getItem("merit-last-tx") || "null"); } catch (_) { /* ignore */ }
+  if (!saved || !saved.hash) return;
+  if (saved.page && saved.page !== (window.location.pathname || "")) return;
+  const s = el("pageStatus");
+  if (!s) return;
+  s.innerHTML = txStatusHtml(saved.msg, saved.hash, saved.nextStep);
 }
 // Copy buttons for hashes and ids: one delegated handler for the
 // whole page, so buttons added by re-rendered cards work too.
@@ -375,6 +396,10 @@ async function initWallet() {
         setTxStatus("Transaction was sent. Confirmation not verified yet.", hashes[0], "Check it on Nearblocks.");
       }
       window.history.replaceState({}, "", window.location.pathname + window.location.search + window.location.hash);
+    } else {
+      // No wallet redirect: bring back the last transaction status
+      // saved by setTxStatus, so its hash survives a reload.
+      restoreTxStatus();
     }
   } catch (_) { /* ignore */ }
   refreshWalletBtn();

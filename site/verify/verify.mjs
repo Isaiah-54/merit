@@ -851,6 +851,29 @@ async function main() {
     const jobStatusText = await text();
     check("create job status shows the transaction hash and the next step",
       jobStatusText.includes("Job sent") && jobStatusText.includes("0123456789…89abcdef") && jobStatusText.includes("Next:") && jobStatusText.toLowerCase().includes("job offers"), jobStatusText);
+    // The transaction hash survives a page reload: setTxStatus saves
+    // it to sessionStorage, and initWallet restores it on load.
+    const savedTx = await page.evaluate(() => JSON.parse(sessionStorage.getItem("merit-last-tx") || "null"));
+    check("create job saves the transaction hash to sessionStorage",
+      savedTx && savedTx.hash === "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" && savedTx.msg.includes("Job sent"),
+      JSON.stringify(savedTx));
+    await page.reload({ waitUntil: "networkidle0" });
+    await sleep(900);
+    const reloadedStatus = await page.$eval("#pageStatus", (el) => el.innerText);
+    check("transaction hash survives a page reload",
+      reloadedStatus.includes("0123456789…89abcdef") && reloadedStatus.includes("Next:"),
+      reloadedStatus);
+    // A reload drops the in-page wallet stub, so re-establish it
+    // before the next checks, which need a connected wallet. It also
+    // clears the form, so refill the fields the next check needs.
+    await setWalletStub("alice.testnet");
+    await page.type("#jobId", "weldgate2");
+    await page.type("#jobTitle", "Weld the second gate");
+    await page.type("#jobDesc", "More welding.");
+    await page.type("#jobStamps", "welding 2");
+    await page.type("#jobCompletionSkill", "welding");
+    await page.type("#jobCriteria", "Weld it clean and strong.");
+    await page.type("#jobPayment", "5");
 
     // An unregistered skill is never sent to create_job. The form
     // offers a one tap DAO request instead, and the job stays unposted.
@@ -1097,9 +1120,9 @@ async function main() {
     EMPTY_MODE = false;
     await page.setViewport({ width: 1280, height: 900 });
 
-    // Five things a Merit does: on a narrow phone the cards are one
-    // horizontal swipe row (scrollable, snap, equal heights, one
-    // row); on a wide screen they stay five across.
+    // Five things a Merit does: the five cards sit in one horizontal
+    // row on every screen size — five across, all visible side by
+    // side, equal heights, one row.
     await page.setViewport({ width: 390, height: 844 });
     await page.goto(BASE + "/index.html", { waitUntil: "networkidle0" });
     await sleep(900);
@@ -1110,18 +1133,15 @@ async function main() {
       const heights = cards.map((c) => c.getBoundingClientRect().height);
       return {
         display: cs.display,
-        overflowX: cs.overflowX,
-        scrollSnap: cs.scrollSnapType,
-        scrollWidth: el.scrollWidth,
-        clientWidth: el.clientWidth,
+        columns: cs.gridTemplateColumns,
         cardCount: cards.length,
         allSameTop: tops.every((y) => Math.abs(y - tops[0]) < 1),
         allSameHeight: heights.every((h) => Math.abs(h - heights[0]) < 1),
       };
     });
-    check("five cards are a horizontal swipe row on a narrow screen",
-      five.display === "flex" && five.overflowX === "auto" && five.scrollSnap.includes("mandatory") &&
-      five.scrollWidth > five.clientWidth && five.cardCount === 5 && five.allSameTop && five.allSameHeight,
+    check("five cards sit in one horizontal row on a narrow screen",
+      five.display === "grid" && five.columns.split(" ").length === 5 &&
+      five.cardCount === 5 && five.allSameTop && five.allSameHeight,
       JSON.stringify(five));
     await page.setViewport({ width: 1280, height: 900 });
     await page.goto(BASE + "/index.html", { waitUntil: "networkidle0" });

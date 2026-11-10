@@ -1,0 +1,669 @@
+{
+  "network": "testnet",
+  "contract_id": "merit-nft.testnet",
+  "verified_at": "2026-11-10T16:02:59.026Z",
+  "owner": "merit-nft.testnet",
+  "dao": "merit-dao.testnet",
+  "wallet_info": {
+    "code_hash": "080cc3f9d475ff0355dfbe156fd47e3255dcbabab830c38b2a4b03b3dafce6e7",
+    "deployed": true,
+    "embedded": false
+  },
+  "completion_skills": [
+    "welding",
+    "torch-work",
+    "gate-welding",
+    "repair-welding",
+    "merit-basics",
+    "coding",
+    "design",
+    "writing",
+    "data-entry"
+  ],
+  "kit_price": "100000000000000000000000",
+  "tokens": {
+    "merit-1": {
+      "token_id": "merit-1",
+      "owner_id": "merit-worker.testnet",
+      "level": 2,
+      "stamps": [
+        {
+          "skill": "welding",
+          "level": 1,
+          "issuer": "merit-nft.testnet",
+          "issuer_name": "Merit DAO",
+          "stamped_at": "1794264719014930910"
+        },
+        {
+          "skill": "gate-welding",
+          "level": 1,
+          "issuer": "merit-nft.testnet",
+          "issuer_name": "Job completion",
+          "stamped_at": "1794264765970847253"
+        }
+      ],
+      "balance_withdrawable": "0",
+      "balance_retained": "50000000000000000000000",
+      "locked": true,
+      "kit": [],
+      "lend": null
+    },
+    "merit-2": {
+      "token_id": "merit-2",
+      "owner_id": "merit-worker.testnet",
+      "level": 8,
+      "stamps": [
+        {
+          "skill": "merit-basics",
+          "level": 1,
+          "issuer": "merit-nft.testnet",
+          "issuer_name": "Merit Test",
+          "stamped_at": "1794292186354892223"
+        },
+        {
+          "skill": "welding",
+          "level": 3,
+          "issuer": "merit-nft.testnet",
+          "issuer_name": "Job completion",
+          "stamped_at": "1794292308872401974"
+        },
+        {
+          "skill": "torch-work",
+          "level": 1,
+          "issuer": "merit-nft.testnet",
+          "issuer_name": "Job completion",
+          "stamped_at": "1794292550615097649"
+        },
+        {
+          "skill": "gate-welding",
+          "level": 1,
+          "issuer": "merit-nft.testnet",
+          "issuer_name": "Job completion",
+          "stamped_at": "1794293046445585234"
+        },
+        {
+          "skill": "repair-welding",
+          "level": 2,
+          "issuer": "merit-nft.testnet",
+          "issuer_name": "Job completion",
+          "stamped_at": "1794294569236672958"
+        }
+      ],
+      "balance_withdrawable": "2375000000000000000000000",
+      "balance_retained": "125000000000000000000000",
+      "locked": true,
+      "kit": [
+        "welding-torch",
+        "demo-hammer"
+      ],
+      "lend": null
+    },
+    "merit-3": {
+      "token_id": "merit-3",
+      "owner_id": "merit-worker.testnet",
+      "level": 0,
+      "stamps": [],
+      "balance_withdrawable": "0",
+      "balance_retained": "0",
+      "locked": false,
+      "kit": [],
+      "lend": null
+    },
+    "ai": {
+      "token_id": "ai",
+      "owner_id": "clearsite587.testnet",
+      "level": 1,
+      "stamps": [
+        {
+          "skill": "merit-basics",
+          "level": 1,
+          "issuer": "merit-nft.testnet",
+          "issuer_name": "Merit Test",
+          "stamped_at": "1794306883894866630"
+        }
+      ],
+      "balance_withdrawable": "0",
+      "balance_retained": "0",
+      "locked": true,
+      "kit": [],
+      "lend": null
+    },
+    "crypto": {
+      "token_id": "crypto",
+      "owner_id": "clearsite587.testnet",
+      "level": 1,
+      "stamps": [
+        {
+          "skill": "merit-basics",
+          "level": 1,
+          "issuer": "merit-nft.testnet",
+          "issuer_name": "Merit Test",
+          "stamped_at": "1794318606531841291"
+        }
+      ],
+      "balance_withdrawable": "0",
+      "balance_retained": "0",
+      "locked": true,
+      "kit": [],
+      "lend": null
+    }
+  },
+  "jobs_before": [
+    {
+      "job_id": "smoke-weld-1",
+      "title": "Smoke weld",
+      "description": "Live smoke test job",
+      "payment": "1000000000000000000000000",
+      "required_stamps": [
+        {
+          "skill": "welding",
+          "min_level": 1
+        }
+      ],
+      "completion_stamp": {
+        "skill": "gate-welding",
+        "level": 1
+      },
+      "criteria": "Weld the gate: continuous beads, no porosity, ground flush.",
+      "poster": "merit-poster.testnet",
+      "arbiter": "merit-dao.testnet",
+      "poster_evidence": null,
+      "worker_evidence": null,
+      "poster_evidence_ref": null,
+      "worker_evidence_ref": null,
+      "refund_pending": false,
+      "status": "Completed",
+      "accepted_by": "merit-1",
+      "timeout_ns": "604800000000000",
+      "accepted_at": "1794264748067494178",
+      "deadline": "1794869548067494178"
+    },
+    {
+      "job_id": "demo-refusal",
+      "title": "Demo refusal gate",
+      "description": "Deliberately refused: a blank Merit with no stamps tries to open this gated job.",
+      "payment": "10000000000000000000000",
+      "required_stamps": [
+        {
+          "skill": "merit-basics",
+          "min_level": 1
+        },
+        {
+          "skill": "welding",
+          "min_level": 2
+        }
+      ],
+      "completion_stamp": {
+        "skill": "welding",
+        "level": 3
+      },
+      "criteria": "Hold a Merit stamped merit-basics 1 and welding 2.",
+      "poster": "merit-poster.testnet",
+      "arbiter": "merit-dao.testnet",
+      "poster_evidence": null,
+      "worker_evidence": null,
+      "poster_evidence_ref": null,
+      "worker_evidence_ref": null,
+      "refund_pending": false,
+      "status": "Cancelled",
+      "accepted_by": null,
+      "timeout_ns": "604800000000000",
+      "accepted_at": null,
+      "deadline": null
+    },
+    {
+      "job_id": "demo-weld-gate",
+      "title": "Weld the demo gate",
+      "description": "Weld the front gate shut: continuous beads, no porosity, ground flush.",
+      "payment": "2000000000000000000000000",
+      "required_stamps": [
+        {
+          "skill": "merit-basics",
+          "min_level": 1
+        },
+        {
+          "skill": "welding",
+          "min_level": 2
+        }
+      ],
+      "completion_stamp": {
+        "skill": "welding",
+        "level": 3
+      },
+      "criteria": "Weld the gate: continuous beads, no porosity, ground flush. Photo of the finished weld required.",
+      "poster": "merit-poster.testnet",
+      "arbiter": "merit-dao.testnet",
+      "poster_evidence": null,
+      "worker_evidence": null,
+      "poster_evidence_ref": null,
+      "worker_evidence_ref": null,
+      "refund_pending": false,
+      "status": "Completed",
+      "accepted_by": "merit-2",
+      "timeout_ns": "604800000000000",
+      "accepted_at": "1794292287687532682",
+      "deadline": "1794897087687532682"
+    },
+    {
+      "job_id": "demo-lend-gate",
+      "title": "Lend demo: weld the side gate",
+      "description": "Accepted by the lend delegate (the poster), proving access moved with the lend.",
+      "payment": "500000000000000000000000",
+      "required_stamps": [
+        {
+          "skill": "welding",
+          "min_level": 2
+        }
+      ],
+      "completion_stamp": {
+        "skill": "torch-work",
+        "level": 1
+      },
+      "criteria": "Weld the side gate shut, same standard as the front gate.",
+      "poster": "merit-poster.testnet",
+      "arbiter": "merit-dao.testnet",
+      "poster_evidence": null,
+      "worker_evidence": null,
+      "poster_evidence_ref": null,
+      "worker_evidence_ref": null,
+      "refund_pending": false,
+      "status": "Completed",
+      "accepted_by": "merit-2",
+      "timeout_ns": "604800000000000",
+      "accepted_at": "1794292548036100190",
+      "deadline": "1794897348036100190"
+    },
+    {
+      "job_id": "demo-lend-expired",
+      "title": "Lend demo: expired access check",
+      "description": "Created to prove the delegate is refused after the lend expires. Left Open on purpose: its 0.01 NEAR escrow stays locked (no cancel method).",
+      "payment": "10000000000000000000000",
+      "required_stamps": [
+        {
+          "skill": "welding",
+          "min_level": 2
+        }
+      ],
+      "completion_stamp": {
+        "skill": "torch-work",
+        "level": 1
+      },
+      "criteria": "Never accepted: this job exists only to record the post-expiry refusal.",
+      "poster": "merit-poster.testnet",
+      "arbiter": "merit-dao.testnet",
+      "poster_evidence": null,
+      "worker_evidence": null,
+      "poster_evidence_ref": null,
+      "worker_evidence_ref": null,
+      "refund_pending": false,
+      "status": "Cancelled",
+      "accepted_by": null,
+      "timeout_ns": "604800000000000",
+      "accepted_at": null,
+      "deadline": null
+    },
+    {
+      "job_id": "demo-timeout-gate",
+      "title": "Timeout demo: weld the back gate",
+      "description": "Poster stays silent past the 60 second deadline; anyone releases the escrow.",
+      "payment": "1000000000000000000000000",
+      "required_stamps": [
+        {
+          "skill": "welding",
+          "min_level": 2
+        }
+      ],
+      "completion_stamp": {
+        "skill": "gate-welding",
+        "level": 1
+      },
+      "criteria": "Weld the back gate shut, same standard as the front gate.",
+      "poster": "merit-poster.testnet",
+      "arbiter": "merit-dao.testnet",
+      "poster_evidence": null,
+      "worker_evidence": null,
+      "poster_evidence_ref": null,
+      "worker_evidence_ref": null,
+      "refund_pending": false,
+      "status": "Completed",
+      "accepted_by": "merit-2",
+      "timeout_ns": "60000000000",
+      "accepted_at": "1794292977477275109",
+      "deadline": "1794293037477275109"
+    },
+    {
+      "job_id": "demo-dispute-gate",
+      "title": "Dispute demo: repair the gate hinge",
+      "description": "Poster disputes the work; the DAO council judges the evidence and pays in full.",
+      "payment": "1000000000000000000000000",
+      "required_stamps": [
+        {
+          "skill": "welding",
+          "min_level": 2
+        }
+      ],
+      "completion_stamp": {
+        "skill": "repair-welding",
+        "level": 2
+      },
+      "criteria": "Repair the gate hinge so the gate swings freely and latches. Before and after photos required.",
+      "poster": "merit-poster.testnet",
+      "arbiter": "merit-dao.testnet",
+      "poster_evidence": "4ba371eb0aea80f37b6556969619a2bc0888510d2417f31da28fc59bebba0ec3",
+      "worker_evidence": "01d07c8bd76aa1a1dd12cc74378c09d3f911f8ecec699034f336db27b00f78c6",
+      "poster_evidence_ref": null,
+      "worker_evidence_ref": null,
+      "refund_pending": false,
+      "status": "Completed",
+      "accepted_by": "merit-2",
+      "timeout_ns": "604800000000000",
+      "accepted_at": "1794293099478276605",
+      "deadline": "1794897899478276605"
+    },
+    {
+      "job_id": "online-landing-page",
+      "title": "Build a landing page",
+      "description": "Build a responsive one-page landing page from the copy the poster supplies.",
+      "payment": "500000000000000000000000",
+      "required_stamps": [
+        {
+          "skill": "merit-basics",
+          "min_level": 1
+        }
+      ],
+      "completion_stamp": {
+        "skill": "coding",
+        "level": 1
+      },
+      "criteria": "A responsive landing page matching the supplied copy, with a live link to view it.",
+      "poster": "merit-poster.testnet",
+      "arbiter": "merit-dao.testnet",
+      "poster_evidence": null,
+      "worker_evidence": null,
+      "poster_evidence_ref": null,
+      "worker_evidence_ref": null,
+      "refund_pending": false,
+      "status": "Open",
+      "accepted_by": null,
+      "timeout_ns": "604800000000000",
+      "accepted_at": null,
+      "deadline": null
+    },
+    {
+      "job_id": "online-logo-design",
+      "title": "Design a logo",
+      "description": "Design a logo for a new product, delivered as SVG and PNG.",
+      "payment": "300000000000000000000000",
+      "required_stamps": [
+        {
+          "skill": "merit-basics",
+          "min_level": 1
+        }
+      ],
+      "completion_stamp": {
+        "skill": "design",
+        "level": 1
+      },
+      "criteria": "A logo delivered as SVG and PNG, in two variations (light and dark background).",
+      "poster": "merit-poster.testnet",
+      "arbiter": "merit-dao.testnet",
+      "poster_evidence": null,
+      "worker_evidence": null,
+      "poster_evidence_ref": null,
+      "worker_evidence_ref": null,
+      "refund_pending": false,
+      "status": "Open",
+      "accepted_by": null,
+      "timeout_ns": "604800000000000",
+      "accepted_at": null,
+      "deadline": null
+    },
+    {
+      "job_id": "online-product-copy",
+      "title": "Write a product description",
+      "description": "Write a clear 150-word product description for a new listing.",
+      "payment": "200000000000000000000000",
+      "required_stamps": [
+        {
+          "skill": "merit-basics",
+          "min_level": 1
+        }
+      ],
+      "completion_stamp": {
+        "skill": "writing",
+        "level": 1
+      },
+      "criteria": "A 150-word product description, clear and plain, no filler.",
+      "poster": "merit-poster.testnet",
+      "arbiter": "merit-dao.testnet",
+      "poster_evidence": null,
+      "worker_evidence": null,
+      "poster_evidence_ref": null,
+      "worker_evidence_ref": null,
+      "refund_pending": false,
+      "status": "Open",
+      "accepted_by": null,
+      "timeout_ns": "604800000000000",
+      "accepted_at": null,
+      "deadline": null
+    },
+    {
+      "job_id": "online-data-cleanup",
+      "title": "Clean a customer list",
+      "description": "Dedupe and standardise a customer list, return a clean CSV.",
+      "payment": "200000000000000000000000",
+      "required_stamps": [
+        {
+          "skill": "merit-basics",
+          "min_level": 1
+        }
+      ],
+      "completion_stamp": {
+        "skill": "data-entry",
+        "level": 1
+      },
+      "criteria": "A clean CSV: no duplicate rows, names and emails standardised.",
+      "poster": "merit-poster.testnet",
+      "arbiter": "merit-dao.testnet",
+      "poster_evidence": null,
+      "worker_evidence": null,
+      "poster_evidence_ref": null,
+      "worker_evidence_ref": null,
+      "refund_pending": false,
+      "status": "Open",
+      "accepted_by": null,
+      "timeout_ns": "604800000000000",
+      "accepted_at": null,
+      "deadline": null
+    },
+    {
+      "job_id": "audit-cancel-1",
+      "title": "Audit cancel",
+      "description": "smoke",
+      "payment": "10000000000000000000000",
+      "required_stamps": [],
+      "completion_stamp": {
+        "skill": "welding",
+        "level": 1
+      },
+      "criteria": "Do the thing.",
+      "poster": "merit-poster.testnet",
+      "arbiter": "merit-dao.testnet",
+      "poster_evidence": null,
+      "worker_evidence": null,
+      "poster_evidence_ref": null,
+      "worker_evidence_ref": null,
+      "refund_pending": false,
+      "status": "Cancelled",
+      "accepted_by": null,
+      "timeout_ns": "604800000000000",
+      "accepted_at": null,
+      "deadline": null
+    },
+    {
+      "job_id": "audit-smoke-job",
+      "title": "Audit smoke job",
+      "description": "smoke",
+      "payment": "2000000000000000000000000",
+      "required_stamps": [
+        {
+          "skill": "welding",
+          "min_level": 1
+        }
+      ],
+      "completion_stamp": {
+        "skill": "coding",
+        "level": 1
+      },
+      "criteria": "Do the thing.",
+      "poster": "merit-worker.testnet",
+      "arbiter": "merit-dao.testnet",
+      "poster_evidence": null,
+      "worker_evidence": null,
+      "poster_evidence_ref": null,
+      "worker_evidence_ref": null,
+      "refund_pending": false,
+      "status": "Completed",
+      "accepted_by": "audit-smoke",
+      "timeout_ns": "604800000000000",
+      "accepted_at": "1794314269830137892",
+      "deadline": "1794919069830137892"
+    },
+    {
+      "job_id": "audit-evidence-ref",
+      "title": "Audit check: evidence reference storage",
+      "description": "Audit fix check job for evidence_ref (M-06). Created only to verify the reference field stores onchain.",
+      "payment": "10000000000000000000000",
+      "required_stamps": [
+        {
+          "skill": "merit-basics",
+          "min_level": 1
+        }
+      ],
+      "completion_stamp": {
+        "skill": "coding",
+        "level": 1
+      },
+      "criteria": "Submit evidence with a content reference and confirm it is stored onchain.",
+      "poster": "merit-poster.testnet",
+      "arbiter": "merit-dao.testnet",
+      "poster_evidence": "5023fbeb2404e75d440136e59e061db8acafbde210de75c7f67cefd6d8a04097",
+      "worker_evidence": "6c34b35162dcc2e436b3e95042388217b08519c2beaddc60727f1ee6fe542cac",
+      "poster_evidence_ref": "data:text/plain;base64,YXVkaXQgZXZpZGVuY2U6IHBvc3RlciBwaG90byBvZiB0aGUgZmluaXNoZWQgd29yaw==",
+      "worker_evidence_ref": "data:text/plain;base64,YXVkaXQgZXZpZGVuY2U6IHdvcmtlciBwaG90byBvZiB0aGUgZmluaXNoZWQgd29yaw==",
+      "refund_pending": false,
+      "status": "Refunded",
+      "accepted_by": "merit-2",
+      "timeout_ns": "604800000000000",
+      "accepted_at": "1794314714725446365",
+      "deadline": "1794919514725446365"
+    },
+    {
+      "job_id": "codingjobone",
+      "title": "Code a small tool",
+      "description": "Build a small coding task for end-to-end testing.",
+      "payment": "200000000000000000000000",
+      "required_stamps": [
+        {
+          "skill": "merit-basics",
+          "min_level": 1
+        }
+      ],
+      "completion_stamp": {
+        "skill": "coding",
+        "level": 1
+      },
+      "criteria": "Working code delivered and reviewed.",
+      "poster": "merittest101126.testnet",
+      "arbiter": "merit-dao.testnet",
+      "poster_evidence": null,
+      "worker_evidence": null,
+      "poster_evidence_ref": null,
+      "worker_evidence_ref": null,
+      "refund_pending": false,
+      "status": "Completed",
+      "accepted_by": "meritfreelancer",
+      "timeout_ns": "604800000000000",
+      "accepted_at": "1794323209821782837",
+      "deadline": "1794928009821782837"
+    },
+    {
+      "job_id": "codingjobtwo",
+      "title": "Small coding check",
+      "description": "A second small coding task for cancel testing.",
+      "payment": "100000000000000000000000",
+      "required_stamps": [
+        {
+          "skill": "merit-basics",
+          "min_level": 1
+        }
+      ],
+      "completion_stamp": {
+        "skill": "coding",
+        "level": 1
+      },
+      "criteria": "Code delivered.",
+      "poster": "merittest101126.testnet",
+      "arbiter": "merit-dao.testnet",
+      "poster_evidence": null,
+      "worker_evidence": null,
+      "poster_evidence_ref": null,
+      "worker_evidence_ref": null,
+      "refund_pending": false,
+      "status": "Cancelled",
+      "accepted_by": null,
+      "timeout_ns": "604800000000000",
+      "accepted_at": null,
+      "deadline": null
+    },
+    {
+      "job_id": "twowalletjob",
+      "title": "Two wallet test job",
+      "description": "Deliver working code for the two-wallet test job.",
+      "payment": "200000000000000000000000",
+      "required_stamps": [
+        {
+          "skill": "merit-basics",
+          "min_level": 1
+        }
+      ],
+      "completion_stamp": {
+        "skill": "coding",
+        "level": 1
+      },
+      "criteria": "Deliver working code.",
+      "poster": "merittest101126.testnet",
+      "arbiter": "merit-dao.testnet",
+      "poster_evidence": null,
+      "worker_evidence": null,
+      "poster_evidence_ref": null,
+      "worker_evidence_ref": null,
+      "refund_pending": false,
+      "status": "Completed",
+      "accepted_by": "workerone",
+      "timeout_ns": "604800000000000",
+      "accepted_at": "1794325622584722394",
+      "deadline": "1794930422584722394"
+    }
+  ],
+  "evidence_test": {
+    "job_id": "evidence-fix-test",
+    "create_tx": "JCMkzmnXQLB6efNQKMqoDwFsavbSYuaj6xSstyFC6aP",
+    "accept_tx": "3WiAEZPPaDqbe5xENTE5EZ6M1DQVVkQ58vWAx4YN8skn",
+    "submit_evidence_tx": "HzN1NTaknajnwWq7KWFcwksYrcfpgSdpCaQQPGjwyApp",
+    "worker_evidence": "a548dd616c0dc2e20ff4e9647bac3d9502aa1f9ec26e6ca8176d177da1481582",
+    "worker_evidence_ref": "https://example.com/evidence-fix-test.txt",
+    "job_status_after_evidence": "Accepted",
+    "completed_job_rejected": {
+      "label": "submit_evidence on Completed job twowalletjob",
+      "ok": true,
+      "error": "{\"index\":0,\"kind\":{\"index\":0,\"kind\":{\"FunctionCallError\":{\"ExecutionError\":\"Smart contract panicked: panicked at contract/src/lib.rs:1637:9:\\njob is not accepted or disputed\"}}}}"
+    }
+  },
+  "merit_wasm_bytes": 539789,
+  "merit_wasm_sha256": "2c756a2e02ab78b56979e66a58d9bb9567e87d97f65ac7620976d92438804b10",
+  "deploy_tx": "BEzkbMgGE1PeryBhRdso2TXZMZZZKNmNomS5WmRQNgeH",
+  "migrate_tx": null,
+  "migrate_note": "migrate() correctly not run: the v2 migration flag merit:migrated_v2 is already set from the audit fix, and this change does not alter the state shape, so no migration is needed. The migrate call attempt (tx BojZHQkAACZLsAAsqzxj4gkCM51h13Jguoifu1uzXBWH) panicked with \"already migrated\", as designed.",
+  "evidence_fix": "submit_evidence now accepts Accepted OR Disputed (was Disputed only), lib.rs:1637"
+}

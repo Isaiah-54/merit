@@ -1611,15 +1611,15 @@ impl Merit {
         self.jobs.insert(job_id, job);
     }
 
-    /// Submit evidence for an open dispute: the SHA-256 hex of the
-    /// evidence bytes (the work product, photos, text), plus an
-    /// optional content reference (a URI or CID) where the council
-    /// can retrieve the evidence and check it against the hash.
-    /// Callable by the poster or the worker while the job is
-    /// Disputed. The evidence itself stays offchain — only its hash
-    /// and reference are recorded, so the arbiter judges the exact
-    /// evidence each side submitted. A side may re-submit (the
-    /// latest hash and reference count).
+    /// Submit evidence for a job in progress or an open dispute:
+    /// the SHA-256 hex of the evidence bytes (the work product,
+    /// photos, text), plus an optional content reference (a URI or
+    /// CID) where the council can retrieve the evidence and check it
+    /// against the hash. Callable by the poster or the worker while
+    /// the job is Accepted or Disputed. The evidence itself stays
+    /// offchain — only its hash and reference are recorded, so the
+    /// arbiter judges the exact evidence each side submitted. A side
+    /// may re-submit (the latest hash and reference count).
     pub fn submit_evidence(
         &mut self,
         job_id: String,
@@ -1634,7 +1634,10 @@ impl Merit {
             );
         }
         let mut job = self.job(&job_id);
-        assert_eq!(job.status, JobStatus::Disputed, "job is not disputed");
+        assert!(
+            job.status == JobStatus::Accepted || job.status == JobStatus::Disputed,
+            "job is not accepted or disputed"
+        );
         let caller = env::predecessor_account_id();
         if caller == job.poster {
             job.poster_evidence = Some(evidence_hash);

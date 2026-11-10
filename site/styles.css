@@ -63,30 +63,12 @@ p.lede { font-size: 18px; color: var(--muted); max-width: 640px; }
 }
 .panel h3 { margin-top: 0; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-/* Five things a Merit does: five across on wide screens, one
-   horizontal swipe row on narrow ones. Equal heights keep the row
-   level. */
-.grid.five-grid { grid-template-columns: repeat(5, 1fr); }
-.grid.five-grid .card { display: flex; flex-direction: column; }
-@media (max-width: 760px) {
-  /* Narrow screens: the five cards become one horizontal row you
-     swipe through, instead of a cramped multi-column grid with
-     uneven heights and empty space. Each card is about 80% of the
-     screen wide so the next card peeks in, all cards share one
-     height, and scroll-snap settles each card into view. */
-  .grid.five-grid {
-    display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 8px;
-  }
-  .grid.five-grid .card {
-    flex: 0 0 80%;
-    scroll-snap-align: start;
-  }
-}
+/* Five things a Merit does: the five cards sit in one horizontal
+   row. Equal heights keep the row level. minmax(0, 1fr) lets the
+   five columns share the row evenly on a narrow phone instead of
+   sizing to their content and overflowing the screen. */
+.grid.five-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.grid.five-grid .card { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
 @media (max-width: 760px) { h1 { font-size: 32px; } }
 /* Long ids and hashes (account ids, evidence hashes) wrap instead
    of overflowing a narrow phone screen. */

@@ -141,7 +141,7 @@ Each job is arbitrated by the Merit DAO, always. There is no arbiter field on a 
 The dispute flow:
 
 1. `raise_dispute`, by the poster or the worker, while the job is Accepted and before the deadline. The job becomes Disputed, which blocks `complete_job` and `release_job`. Nothing moves until the dispute is resolved.
-2. `submit_evidence`, by the poster or the worker, while the job is Disputed. Each side records a SHA256 hash of its evidence, and may also store a content reference alongside the hash, such as a link or a content id, so the council can find the exact evidence each side submitted. The evidence itself stays offchain, only the hash and the reference are recorded. The DAO page shows the reference as a View evidence link and verifies the hash against the linked content. A side may submit again; the latest hash and reference count.
+2. `submit_evidence`, by the poster or the worker, while the job is Accepted or Disputed. Each side records a SHA256 hash of its evidence, and may also store a content reference alongside the hash, such as a link or a content id, so the council can find the exact evidence each side submitted. The evidence itself stays offchain, only the hash and the reference are recorded. The DAO page shows the reference as a View evidence link and verifies the hash against the linked content. A side may submit again; the latest hash and reference count.
 3. Proposal creation is a separate step, not automatic when a dispute is raised. The disputer, or anyone, calls the DAO's `add_proposal` with a FunctionCall proposal to `resolve_dispute` carrying one proposed outcome. The proposal description carries the job id, the outcome, the criteria, and both sides' evidence hashes. Proposal bond is 1 NEAR.
 4. The council votes Approve or Reject. The deciding vote executes the FunctionCall automatically. `resolve_dispute` is callable only by the Merit DAO; any other caller is rejected.
 5. Outcomes: `pay_full` pays the full escrow to the worker's Merit, 95% withdrawable and 5% retained, and issues the completion stamp. `refund` returns the full escrow to the poster, with no stamp. `partial` pays an arbiter set amount, at most the escrow and above zero, to the worker's Merit, 95% withdrawable and 5% retained, refunds the remainder to the poster, and issues no stamp.
@@ -205,11 +205,11 @@ Verified build output:
 
 Tests: unit tests 18 of 18 pass. Integration tests 27 of 27 pass, run in a near workspaces sandbox, including 4 tests against a real Sputnik v2 DAO contract covering the dispute proposal and vote paths.
 
-Site: `site/` in this repo. A headless verifier pass, `site/verify/verify.mjs`, passed 159 of 159 checks covering mint, Merit detail, the jobs board, and gate refusal rendering. The site config is wired to the live contract id `merit-nft.testnet` and DAO `merit-dao.testnet`.
+Site: `site/` in this repo. A headless verifier pass, `site/verify/verify.mjs`, passed 180 of 180 checks covering mint, Merit detail, the jobs board, and gate refusal rendering. The site config is wired to the live contract id `merit-nft.testnet` and DAO `merit-dao.testnet`.
 
 ## Audit fix
 
-A security audit on 2026-11-10 found 9 issues, all verified real and all fixed in one contract update, redeployed the same day with state preserved (deploy tx `8JyZd3JhPmZZgbJwnDgqQAka8LhpBV1X76J7rZRHbvGg`, migrate tx `BRDnkBTgHJmfzAmG9j6nuNuv37ah7tdAYkCMzrNbNq6q`, wasm in the table above). The fixes: the completion skill registry; the DAO always arbitrates; `cancel_job` with exact refund and retry; the exact 0.1 NEAR mint deposit; the stamp cap enforced on completion stamps; the evidence reference; input bounds and paginated lists; `buy_kit` spending retained on kit; DAO only issuer control plus `revoke_stamp`; and the demo test labelled demo only. The demo log and the verifier were updated to the new numbers in step 12 above, and the site verifier was rerun clean at 159 of 159. The audit report is `Merit_Security_Audit_Report_2026-11-10_17_stj6.pdf`.
+A security audit on 2026-11-10 found 9 issues, all verified real and all fixed in one contract update, redeployed the same day with state preserved (deploy tx `8JyZd3JhPmZZgbJwnDgqQAka8LhpBV1X76J7rZRHbvGg`, migrate tx `BRDnkBTgHJmfzAmG9j6nuNuv37ah7tdAYkCMzrNbNq6q`, wasm in the table above). The fixes: the completion skill registry; the DAO always arbitrates; `cancel_job` with exact refund and retry; the exact 0.1 NEAR mint deposit; the stamp cap enforced on completion stamps; the evidence reference; input bounds and paginated lists; `buy_kit` spending retained on kit; DAO only issuer control plus `revoke_stamp`; and the demo test labelled demo only. The demo log and the verifier were updated to the new numbers in step 12 above, and the site verifier was rerun clean at 180 of 180. The audit report is `Merit_Security_Audit_Report_2026-11-10_17_stj6.pdf`.
 
 ## How to run it
 
@@ -251,6 +251,6 @@ The full demo is `scripts/demo.mjs`. Run it with `node scripts/demo.mjs`; to res
 | `scripts/verify-demo.mjs` | Verifies the demo, 71 of 71 checks |
 | `package.json` | Node dependencies (near-api-js 5.1.1) for the demo scripts |
 | `site/` | Mint, Merit detail, jobs board, lend |
-| `site/verify/verify.mjs` | Headless site verifier, 159 of 159 checks |
+| `site/verify/verify.mjs` | Headless site verifier, 180 of 180 checks |
 | `PITCH.md` | The pitch |
 | `skill.md` | The agent skill for Merit |
