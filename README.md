@@ -1,5 +1,3 @@
-# Merit
-
 The NFT that proves what you can do.
 
 Credentials you earn. Doors only proof can open.
