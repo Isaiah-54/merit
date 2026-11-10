@@ -381,6 +381,16 @@ async function main() {
     check("detail shows locked state", t.includes("Locked"));
     check("detail has withdraw, lend and stamp forms",
       (await page.$("#withdrawForm")) !== null && (await page.$("#lendForm")) !== null && (await page.$("#stampForm")) !== null);
+    // Account balance is the first section under the Merit header,
+    // before Stamps and level, Kit, Lend, and Stamp and test.
+    const sectionOrder = await page.$$eval("main h2", (els) => els.map((e) => e.textContent.trim()));
+    check("detail account balance comes first, before stamps and level",
+      sectionOrder.indexOf("Account balance") !== -1 && sectionOrder.indexOf("Stamps and level") !== -1 &&
+      sectionOrder.indexOf("Account balance") < sectionOrder.indexOf("Stamps and level") &&
+      sectionOrder.indexOf("Account balance") < sectionOrder.indexOf("Kit") &&
+      sectionOrder.indexOf("Account balance") < sectionOrder.indexOf("Lend") &&
+      sectionOrder.indexOf("Account balance") < sectionOrder.indexOf("Stamp and test"),
+      sectionOrder.join(" | "));
     check("detail shows all five stamps", ["merit-basics", "welding", "torch-work", "gate-welding", "repair-welding"].every((s) => t.includes(s)));
     // Labels are uppercased by CSS, so innerText returns them in
     // capitals: compare lowercased for the label text.
@@ -441,6 +451,35 @@ async function main() {
     buyVisible = await page.$eval("#buyKitSection", (el) => el.style.display !== "none");
     check("buy kit section hidden from a non-owner", !buyVisible);
 
+    // Owner gating: a non-owner sees none of the owner action forms
+    // (deposit/withdraw kit, lend, demo test, withdraw), only one
+    // short read-only line, while the public Merit info stays.
+    const ownerFormVisible = async (sel) => page.$eval(sel, (el) => el.style.display !== "none");
+    check("non-owner sees no deposit/withdraw kit panel", !(await ownerFormVisible("#kitActionsPanel")));
+    check("non-owner sees no lend panel", !(await ownerFormVisible("#lendActionsPanel")));
+    check("non-owner sees no demo test form", !(await ownerFormVisible("#testForm")));
+    check("non-owner sees no withdraw section", !(await ownerFormVisible("#withdrawSection")));
+    const noteVisible = await page.$eval("#ownerActionsNote", (el) => el.style.display !== "none");
+    const noteText = await page.$eval("#ownerActionsNote", (el) => el.textContent);
+    check("non-owner sees the read-only owner note", noteVisible && noteText.includes("You are viewing someone else's Merit") && noteText.includes("Only its owner can"), "visible=" + noteVisible + " text=" + noteText);
+    t = await text();
+    check("non-owner still sees the public Merit info", t.includes("welding") && t.includes("alice.testnet") && t.includes("2.500"));
+    // No wallet at all: same as a non-owner.
+    await page.evaluate(() => { window.__meritTest.setWallet(null); });
+    await sleep(900);
+    check("no wallet sees no deposit/withdraw kit panel", !(await ownerFormVisible("#kitActionsPanel")));
+    check("no wallet sees no lend panel", !(await ownerFormVisible("#lendActionsPanel")));
+    check("no wallet sees no demo test form", !(await ownerFormVisible("#testForm")));
+    check("no wallet sees the read-only owner note", await page.$eval("#ownerActionsNote", (el) => el.style.display !== "none"));
+    // The owner sees every action form and no note.
+    await setWalletStub("alice.testnet");
+    await sleep(900);
+    check("owner sees the deposit/withdraw kit panel", await ownerFormVisible("#kitActionsPanel"));
+    check("owner sees the lend panel", await ownerFormVisible("#lendActionsPanel"));
+    check("owner sees the demo test form", await ownerFormVisible("#testForm"));
+    check("owner sees the withdraw section", await ownerFormVisible("#withdrawSection"));
+    check("owner sees no read-only owner note", !(await page.$eval("#ownerActionsNote", (el) => el.style.display !== "none")));
+
     // Pass a test builds the right call, with real gas, and the
     // status lands below the Submit button, not at the top. This
     // guards the bug where the status element id was passed as the
@@ -471,7 +510,13 @@ async function main() {
     const pickerText = await page.$eval("#meritPicker", (el) => el.textContent);
     check("detail switcher lists merit-1 and merit-2", pickerText.includes("merit-1") && pickerText.includes("merit-2"));
     check("detail default merit-2 is blank", t.includes("No stamps yet"));
-    check("detail next step for a blank Merit is pass the demo test", t.toLowerCase().includes("next step: pass the demo test") && t.includes("Pass the demo test to earn your first stamp"));
+    // With no wallet the viewer is not the owner, so the blank
+    // Merit's next step is the owner-only message, not the button:
+    // the button only appears once the owner connects. (This check
+    // used to assert the button text here; that was the old
+    // behaviour before owner gating, so the check itself was wrong
+    // and is corrected here.)
+    check("detail next step for a blank Merit is pass the demo test", t.toLowerCase().includes("next step: pass the demo test") && t.toLowerCase().includes("only its owner can pass the demo test"));
     check("demo test is labelled demo only, not a high trust credential",
       t.includes("Demo only") && t.includes("demo stamp") && t.includes("does not prove skill"));
     // A connected owner who opens the page with no id sees their own
@@ -482,6 +527,13 @@ async function main() {
     t = await text();
     check("detail defaults to the connected owner's own Merit", (await page.$eval("#meritTitle", (el) => el.textContent)) === "crypto");
     check("detail crypto kit is empty and names the Merit", t.includes("No kit inside crypto yet") && t.includes("The tools crypto carries"), t);
+    // The owner of a blank Merit sees the pass-the-test button as
+    // the next step (the no-wallet view above shows the owner-only
+    // message instead). carol.testnet owns the blank merit-2.
+    await page.evaluate(() => { window.__meritTest.setWallet("carol.testnet"); });
+    await sleep(900);
+    t = await text();
+    check("detail owner of a blank Merit sees the pass the test button", (await page.$eval("#meritTitle", (el) => el.textContent)) === "merit-2" && t.includes("Pass the demo test to earn your first stamp"));
 
     // ---------- Jobs hub ----------
     await page.goto(BASE + "/jobs.html", { waitUntil: "networkidle0" });
@@ -1044,6 +1096,43 @@ async function main() {
     await emptyPage.close();
     EMPTY_MODE = false;
     await page.setViewport({ width: 1280, height: 900 });
+
+    // Five things a Merit does: on a narrow phone the cards are one
+    // horizontal swipe row (scrollable, snap, equal heights, one
+    // row); on a wide screen they stay five across.
+    await page.setViewport({ width: 390, height: 844 });
+    await page.goto(BASE + "/index.html", { waitUntil: "networkidle0" });
+    await sleep(900);
+    const five = await page.$eval(".grid.five-grid", (el) => {
+      const cs = getComputedStyle(el);
+      const cards = Array.from(el.children);
+      const tops = cards.map((c) => c.getBoundingClientRect().top);
+      const heights = cards.map((c) => c.getBoundingClientRect().height);
+      return {
+        display: cs.display,
+        overflowX: cs.overflowX,
+        scrollSnap: cs.scrollSnapType,
+        scrollWidth: el.scrollWidth,
+        clientWidth: el.clientWidth,
+        cardCount: cards.length,
+        allSameTop: tops.every((y) => Math.abs(y - tops[0]) < 1),
+        allSameHeight: heights.every((h) => Math.abs(h - heights[0]) < 1),
+      };
+    });
+    check("five cards are a horizontal swipe row on a narrow screen",
+      five.display === "flex" && five.overflowX === "auto" && five.scrollSnap.includes("mandatory") &&
+      five.scrollWidth > five.clientWidth && five.cardCount === 5 && five.allSameTop && five.allSameHeight,
+      JSON.stringify(five));
+    await page.setViewport({ width: 1280, height: 900 });
+    await page.goto(BASE + "/index.html", { waitUntil: "networkidle0" });
+    await sleep(900);
+    const fiveWide = await page.$eval(".grid.five-grid", (el) => {
+      const cs = getComputedStyle(el);
+      return { display: cs.display, columns: cs.gridTemplateColumns };
+    });
+    check("five cards stay five across on a wide screen",
+      fiveWide.display === "grid" && fiveWide.columns.split(" ").length === 5,
+      JSON.stringify(fiveWide));
 
     // ---------- Copy rule and JS errors ----------
     // Badges is excluded: its badge catalogue copy (approved in the

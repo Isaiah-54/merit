@@ -28,14 +28,10 @@
   <h1 id="meritTitle">Merit</h1>
   <div id="meritPicker"></div>
   <div id="meritSummary"><p class="muted loading">Loading Merit…</p></div>
-  <div id="nextStep" aria-live="polite"></div>
-
-  <h2>Stamps and level</h2>
-  <div id="stampList"><p class="muted loading">Loading stamps…</p></div>
 
   <h2>Account balance</h2>
   <div class="panel" id="balancePanel"><p class="muted loading">Loading balance…</p></div>
-  <div class="panel" id="withdrawSection">
+  <div class="panel" id="withdrawSection" style="display:none">
     <h3>Withdraw</h3>
     <p class="muted small">Withdraw from the withdrawable balance to your
     wallet. The retained part stays in the Merit account.</p>
@@ -49,6 +45,15 @@
     </form>
   </div>
 
+  <div class="panel" id="ownerActionsNote" style="display:none">
+    <p style="margin:0">You are viewing someone else's Merit. Only its owner can withdraw, deposit kit, buy kit, lend it, or pass the test.</p>
+  </div>
+
+  <div id="nextStep" aria-live="polite"></div>
+
+  <h2>Stamps and level</h2>
+  <div id="stampList"><p class="muted loading">Loading stamps…</p></div>
+
   <h2>Kit</h2>
   <div id="kitList"><p class="muted loading">Loading kit…</p></div>
   <div class="panel" id="buyKitSection" style="display:none">
@@ -61,7 +66,7 @@
       <p id="buyKitStatus" class="status" aria-live="polite"></p>
     </form>
   </div>
-  <div class="panel">
+  <div class="panel" id="kitActionsPanel" style="display:none">
     <h3>Deposit kit into this Merit</h3>
     <form id="depositKitForm">
       <label for="depositKitId">Kit token id</label>
@@ -78,7 +83,7 @@
 
   <h2>Lend</h2>
   <div class="panel" id="lendPanel"><p class="muted loading">Loading lend state…</p></div>
-  <div class="panel">
+  <div class="panel" id="lendActionsPanel" style="display:none">
     <h3>Lend this Merit</h3>
     <p class="muted small">Lending keeps the Merit yours. The borrower can
     use it until the expiry date. A locked Merit can be lent, never sold.</p>
@@ -109,7 +114,7 @@
     <p class="muted small" id="stampNote" style="display:none">Stamps come from a whitelisted issuer, not from the holder. You earn your first stamp by passing the demo test below.</p>
     <h3>Pass the demo test</h3>
     <p class="muted small">Only the holder can pass the demo test for this Merit. Demo only: this is an onboarding check, not a real credential. The merit-basics stamp it earns is a demo stamp. It does not prove skill, and gated jobs should not treat it as a high trust credential.</p>
-    <form id="testForm">
+    <form id="testForm" style="display:none">
       <label for="testAnswer">Answer</label>
       <input id="testAnswer" type="text" placeholder="merit" autocomplete="off">
       <p class="muted small" style="margin:4px 0 0">Demo test: type merit in the box.</p>

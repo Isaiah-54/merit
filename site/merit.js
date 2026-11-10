@@ -197,6 +197,22 @@ async function loadMerit() {
     // read from the contract, with the same value as the fallback.
     const buySection = el("buyKitSection");
     if (buySection) buySection.style.display = isOwner ? "" : "none";
+
+    // Deposit kit, withdraw kit, lend, and the demo test are
+    // owner-only too. Their forms stay hidden (display:none in the
+    // HTML) until this load confirms the connected wallet is the
+    // owner, so a non-owner never briefly sees them and an owner
+    // never briefly loses them once the wallet restores. A
+    // non-owner, or no wallet at all, sees one short read-only line
+    // instead of the actions.
+    const kitActions = el("kitActionsPanel");
+    if (kitActions) kitActions.style.display = isOwner ? "" : "none";
+    const lendActions = el("lendActionsPanel");
+    if (lendActions) lendActions.style.display = isOwner ? "" : "none";
+    const testFormEl = el("testForm");
+    if (testFormEl) testFormEl.style.display = isOwner ? "" : "none";
+    const ownerNote = el("ownerActionsNote");
+    if (ownerNote) ownerNote.style.display = isOwner ? "none" : "";
     let kitPriceYocto = "100000000000000000000000";
     try {
       const kp = await view("kit_price", {});
@@ -281,11 +297,18 @@ function renderNextStep(m) {
     label = "Next step: withdraw";
     text = "Your Merit earned " + fmtYocto(m.balance_withdrawable) + " NEAR. Withdraw it to your wallet.";
     action = "<button type=\"button\" class=\"btn\" id=\"nextStepBtn\">Withdraw " + escapeHtml(fmtYocto(m.balance_withdrawable)) + " NEAR</button>";
-  } else if (stamps.length === 0) {
+  } else if (stamps.length === 0 && isOwner) {
     num = "2";
     label = "Next step: pass the demo test";
     text = "This Merit is blank. Pass the demo test to earn your first stamp and open gated jobs.";
     action = "<button type=\"button\" class=\"btn\" id=\"nextStepBtn\">Pass the demo test to earn your first stamp</button>";
+  } else if (stamps.length === 0) {
+    // A blank Merit viewed by someone who is not its owner: the
+    // demo test is holder-only, so there is no action to offer here.
+    num = "2";
+    label = "Next step: pass the demo test";
+    text = "This Merit is blank. Only its owner can pass the demo test to earn the first stamp.";
+    action = "";
   } else {
     num = "4";
     label = "Next step: take a job";
@@ -301,7 +324,7 @@ function renderNextStep(m) {
   if (!btn) return;
   if (withdrawable > 0n && isOwner) {
     btn.addEventListener("click", () => withdrawAll(withdrawable, btn));
-  } else if (stamps.length === 0) {
+  } else if (stamps.length === 0 && isOwner) {
     btn.addEventListener("click", () => {
       const sec = el("testSection");
       if (sec) sec.scrollIntoView({ behavior: "smooth", block: "start" });
