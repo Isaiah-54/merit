@@ -12,6 +12,21 @@ Contract: `merit-nft.testnet` (deploy tx `F6VrR4SUyBT6tx58yXd42sWKeRhD2DMCs3EJrj
 
 Hackathon deadline: 14 November 2026, 23:59 UTC. Testnet only.
 
+## Try it yourself (no build needed)
+
+Everything below uses the live site and the live testnet contracts. You do not need to build, deploy, or ask anyone anything.
+
+Live site: https://merit-black.vercel.app/
+
+1. Open the live site → you see the home page, the six-step journey (Mint, Pass the test, Earn a stamp, Take a job, Get paid, Withdraw), and the two demo Merits.
+2. Open merit-2 → you see Level 8, five stamps (merit-basics 1, welding 3, torch-work 1, gate-welding 1, repair-welding 2), sub-account balance 2.650 NEAR, withdrawable 2.375 NEAR, retained 0.225 NEAR, mint deposit 0.050 NEAR. The three money lines add up to the balance.
+3. Open Jobs → you see 6 open offers and 5 completed jobs. Type "logo" in the search → you see "Showing 1 of 6" (Design a logo only). Each offer card leads with "Pay: X NEAR · held in escrow".
+4. Open Badges → you see 5 held badges with their level explanations and "Held by" lists, plus 4 earnable badges (coding, design, writing, data-entry), each naming the job that earns it and marked "Not held yet".
+5. Open the DAO → you see proposal #0, APPROVED 2-0, outcome "Pay in full and issue the stamp", 1.0 NEAR paid to merit-2. No proposals are open.
+6. To try the flow yourself, connect a NEAR testnet wallet and mint a blank Merit for 0.1 NEAR → you see a blank Merit, level 0, no stamps, with its own sub-account. Pass the test with the answer `merit` → you see the merit-basics stamp at level 1 and the Merit locks. Take a job your stamps unlock → the job is assigned to your Merit. When the poster confirms completion (or the deadline passes with no dispute) → the payment lands in your Merit's sub-account, 95% withdrawable and 5% retained, and the completion stamp is issued. Withdraw → the withdrawable NEAR moves to your wallet.
+
+To verify any of it onchain, the contract is `merit-nft.testnet` and the DAO is `merit-dao.testnet`. Every step above is a real onchain read or transaction; nothing is mocked.
+
 ## Lead and the other project
 
 Lead: Isaiah.
