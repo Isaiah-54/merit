@@ -63,13 +63,16 @@ p.lede { font-size: 18px; color: var(--muted); max-width: 640px; }
 }
 .panel h3 { margin-top: 0; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-/* Five things a Merit does: the five cards sit in one horizontal
-   row. Equal heights keep the row level. minmax(0, 1fr) lets the
-   five columns share the row evenly on a narrow phone instead of
-   sizing to their content and overflowing the screen. */
+/* Five things a Merit does: five across in one horizontal row on
+   wide screens. On a narrow phone the five cards stack in one
+   column, full width, so the words read left to right instead of
+   breaking letter by letter down a narrow column. */
 .grid.five-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.grid.five-grid .card { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
-@media (max-width: 760px) { h1 { font-size: 32px; } }
+.grid.five-grid .card { display: flex; flex-direction: column; min-width: 0; }
+@media (max-width: 760px) {
+  .grid.five-grid { grid-template-columns: 1fr; }
+  h1 { font-size: 32px; }
+}
 /* Long ids and hashes (account ids, evidence hashes) wrap instead
    of overflowing a narrow phone screen. */
 .mono { overflow-wrap: anywhere; }

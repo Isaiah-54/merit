@@ -1120,28 +1120,27 @@ async function main() {
     EMPTY_MODE = false;
     await page.setViewport({ width: 1280, height: 900 });
 
-    // Five things a Merit does: the five cards sit in one horizontal
-    // row on every screen size — five across, all visible side by
-    // side, equal heights, one row.
+    // Five things a Merit does: five across in one horizontal row
+    // on a wide screen; on a narrow phone the five cards stack in
+    // one column, full width, so the words read left to right
+    // instead of breaking letter by letter down a narrow column.
     await page.setViewport({ width: 390, height: 844 });
     await page.goto(BASE + "/index.html", { waitUntil: "networkidle0" });
     await sleep(900);
     const five = await page.$eval(".grid.five-grid", (el) => {
       const cs = getComputedStyle(el);
       const cards = Array.from(el.children);
-      const tops = cards.map((c) => c.getBoundingClientRect().top);
-      const heights = cards.map((c) => c.getBoundingClientRect().height);
+      const label = el.querySelector(".card .label");
       return {
         display: cs.display,
         columns: cs.gridTemplateColumns,
         cardCount: cards.length,
-        allSameTop: tops.every((y) => Math.abs(y - tops[0]) < 1),
-        allSameHeight: heights.every((h) => Math.abs(h - heights[0]) < 1),
+        labelHeight: label ? label.getBoundingClientRect().height : -1,
       };
     });
-    check("five cards sit in one horizontal row on a narrow screen",
-      five.display === "grid" && five.columns.split(" ").length === 5 &&
-      five.cardCount === 5 && five.allSameTop && five.allSameHeight,
+    check("five cards stack in one column on a narrow screen, titles read left to right",
+      five.display === "grid" && five.columns.split(" ").length === 1 &&
+      five.cardCount === 5 && five.labelHeight < 40,
       JSON.stringify(five));
     await page.setViewport({ width: 1280, height: 900 });
     await page.goto(BASE + "/index.html", { waitUntil: "networkidle0" });
