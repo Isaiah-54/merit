@@ -149,6 +149,13 @@ function jobTypeHtml(job) {
   const pretty = label ? label.charAt(0).toUpperCase() + label.slice(1) : type;
   return "<p class=\"job-type\" style=\"margin:.1em 0 0\"><span class=\"chip\">" + escapeHtml(pretty) + " job</span></p>";
 }
+// The description of the job: what the work actually is. Labelled
+// plainly so a stranger sees at a glance what they are being asked
+// to do, instead of a bare paragraph.
+function jobDescriptionHtml(job) {
+  if (!job.description) return "";
+  return "<p style=\"margin:.1em 0\"><strong>What to do</strong><br>" + escapeHtml(job.description) + "</p>";
+}
 
 // ---- Job offers search: live filter by title and by skill / type ----
 let cachedOpenJobs = [];
@@ -210,7 +217,7 @@ function renderOpenJobs() {
       "<div class=\"job-card-top\"><div class=\"label\">" + escapeHtml(job.title || job.job_id) + "</div><span class=\"chip open\">Open</span></div>" +
       jobTypeHtml(job) +
       jobPayBannerHtml(job) +
-      (job.description ? "<p style=\"margin:.1em 0\">" + escapeHtml(job.description) + "</p>" : "") +
+      jobDescriptionHtml(job) +
       jobFactsHtml(job, status, { hidePay: true }) +
       "<p><strong>Acceptance criteria</strong><br>" + escapeHtml(job.criteria || "Not posted yet.") + "</p>" +
       "<p class=\"muted small\">Job <span class=\"mono\">" + escapeHtml(job.job_id) + "</span> \u2022 Posted by <span class=\"mono\">" + escapeHtml(job.poster || "unknown") + "</span></p>" +
@@ -366,7 +373,7 @@ async function loadJobs() {
             "<div class=\"job-card-top\"><div class=\"label\">" + escapeHtml(job.title || job.job_id) + "</div><span class=\"chip status\">" + escapeHtml(status) + "</span></div>" +
             jobTypeHtml(job) +
             jobPayBannerHtml(job) +
-            (job.description ? "<p style=\"margin:.1em 0\">" + escapeHtml(job.description) + "</p>" : "") +
+            jobDescriptionHtml(job) +
             jobFactsHtml(job, status, { hidePay: true }) +
             (worker ? "<div class=\"kv\"><span>Worker</span><b><a class=\"mono\" href=\"merit.html?id=" + encodeURIComponent(worker) + "\">" + escapeHtml(worker) + "</a></b></div>" : "") +
             "<p><strong>Acceptance criteria</strong><br>" + escapeHtml(job.criteria || "Not posted yet.") + "</p>" +
@@ -400,7 +407,7 @@ async function loadJobs() {
           return "<div class=\"card\">" +
             "<div class=\"job-card-top\"><div class=\"label\">" + escapeHtml(job.title || job.job_id) + "</div><span class=\"chip status\">Completed</span></div>" +
             jobTypeHtml(job) +
-            (job.description ? "<p style=\"margin:.1em 0\">" + escapeHtml(job.description) + "</p>" : "") +
+            jobDescriptionHtml(job) +
             "<div class=\"kv\"><span>Amount paid</span><b>" + escapeHtml(fmtYocto(jobPaymentYocto(job))) + " NEAR</b></div>" +
             "<div class=\"kv\"><span>Stamp issued</span><b>" + stampText + "</b></div>" +
             "<div class=\"kv\"><span>Worker</span><b>" + (worker ? "<a class=\"mono\" href=\"merit.html?id=" + encodeURIComponent(worker) + "\">" + escapeHtml(worker) + "</a>" : "Not recorded onchain") + "</b></div>" +
