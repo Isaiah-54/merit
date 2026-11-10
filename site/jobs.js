@@ -128,6 +128,27 @@ function jobFactsHtml(job, status, opts) {
 function jobPayBannerHtml(job) {
   return "<div class=\"job-pay-banner\"><span class=\"pay-label\">Pay:</span><span class=\"pay-amount\">" + escapeHtml(fmtYocto(jobPaymentYocto(job))) + " NEAR</span><span class=\"pay-note\">held in escrow until the work completes</span></div>";
 }
+// The type of a job is the skill it earns: the completion stamp's
+// skill. A stranger reading the card should see at a glance what
+// kind of work it is, instead of inferring it from the stamp list.
+// Falls back to the first required stamp that is not the generic
+// merit-basics stamp.
+function jobType(job) {
+  const cs = job.completion_stamp || job.completionStamp || null;
+  if (cs && cs.skill) return String(cs.skill);
+  const stamps = normStamps(job).filter((s) => String(s.skill || "").toLowerCase() !== "merit-basics");
+  if (stamps.length) return String(stamps[0].skill);
+  const all = normStamps(job);
+  if (all.length) return String(all[0].skill);
+  return "";
+}
+function jobTypeHtml(job) {
+  const type = jobType(job);
+  if (!type) return "";
+  const label = type.replace(/[-_]+/g, " ").trim();
+  const pretty = label ? label.charAt(0).toUpperCase() + label.slice(1) : type;
+  return "<p class=\"job-type\" style=\"margin:.1em 0 0\"><span class=\"chip\">" + escapeHtml(pretty) + " job</span></p>";
+}
 
 // ---- Job offers search: live filter by title and by skill / type ----
 let cachedOpenJobs = [];
@@ -187,6 +208,7 @@ function renderOpenJobs() {
     const status = jobStatus(job);
     return "<div class=\"card\" data-job-id=\"" + escapeHtml(job.job_id) + "\">" +
       "<div class=\"job-card-top\"><div class=\"label\">" + escapeHtml(job.title || job.job_id) + "</div><span class=\"chip open\">Open</span></div>" +
+      jobTypeHtml(job) +
       jobPayBannerHtml(job) +
       (job.description ? "<p style=\"margin:.1em 0\">" + escapeHtml(job.description) + "</p>" : "") +
       jobFactsHtml(job, status, { hidePay: true }) +
@@ -342,6 +364,7 @@ async function loadJobs() {
           const pid = jobProposalId(job);
           return "<div class=\"card\" data-job-id=\"" + escapeHtml(job.job_id) + "\">" +
             "<div class=\"job-card-top\"><div class=\"label\">" + escapeHtml(job.title || job.job_id) + "</div><span class=\"chip status\">" + escapeHtml(status) + "</span></div>" +
+            jobTypeHtml(job) +
             jobPayBannerHtml(job) +
             (job.description ? "<p style=\"margin:.1em 0\">" + escapeHtml(job.description) + "</p>" : "") +
             jobFactsHtml(job, status, { hidePay: true }) +
@@ -376,6 +399,7 @@ async function loadJobs() {
           const csLevel = cs && cs.level != null ? cs.level : 1;
           return "<div class=\"card\">" +
             "<div class=\"job-card-top\"><div class=\"label\">" + escapeHtml(job.title || job.job_id) + "</div><span class=\"chip status\">Completed</span></div>" +
+            jobTypeHtml(job) +
             (job.description ? "<p style=\"margin:.1em 0\">" + escapeHtml(job.description) + "</p>" : "") +
             "<div class=\"kv\"><span>Amount paid</span><b>" + escapeHtml(fmtYocto(jobPaymentYocto(job))) + " NEAR</b></div>" +
             "<div class=\"kv\"><span>Stamp issued</span><b>" + stampText + "</b></div>" +
