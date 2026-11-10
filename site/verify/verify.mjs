@@ -102,6 +102,7 @@ const JOBS = [
   { job_id: "paintfence", title: "Paint the fence", description: "Paint the long fence.", required_stamps: [{ skill: "painting", min_level: 3 }], payment: "1000000000000000000000000", status: "Disputed", arbiter: "merit-dao.testnet", completion_stamp: { skill: "painting", level: 3 }, criteria: "Paint the long fence in two coats with no drips.", poster: "carol.testnet", accepted_by: "dave.testnet", poster_evidence: POSTER_EVIDENCE, worker_evidence: WORKER_EVIDENCE, poster_evidence_ref: dataRef(POSTER_CONTENT), worker_evidence_ref: dataRef(WORKER_CONTENT), dao_proposal_id: 0 },
   { job_id: "buildlanding", title: "Build a landing page", description: "Build a one page site for the farm.", required_stamps: [{ skill: "merit-basics", min_level: 1 }], payment: "500000000000000000000000", status: "Open", arbiter: "merit-dao.testnet", completion_stamp: { skill: "coding", level: 1 }, criteria: "One page, loads fast, works on a phone.", poster: "alice.testnet", poster_evidence: null, worker_evidence: null },
   { job_id: "oldjob", title: "Old job", description: "A job nobody took.", required_stamps: [], payment: "1000000000000000000000000", status: "Cancelled", arbiter: "merit-dao.testnet", completion_stamp: { skill: "coding", level: 1 }, criteria: "Do the old work.", poster: "alice.testnet", poster_evidence: null, worker_evidence: null },
+  { job_id: "codejob", title: "Code the widget", description: "Build the widget for the farm site.", required_stamps: [{ skill: "merit-basics", min_level: 1 }], payment: "200000000000000000000000", status: "Accepted", arbiter: "merit-dao.testnet", completion_stamp: { skill: "coding", level: 1 }, criteria: "The widget loads and works on a phone.", poster: "alice.testnet", accepted_by: "merit-1", poster_evidence: null, worker_evidence: null },
 ];
 
 // Merit DAO (Sputnik v2) canned state: council of 3, threshold 2.
@@ -543,9 +544,13 @@ async function main() {
     const doneCount = await page.$eval("#jobsDoneCount", (el) => el.textContent.trim());
     check("jobs hub shows live counts", openCount === "2" && doneCount === "0", "open=" + openCount + " done=" + doneCount);
     const hubHrefs = await page.$$eval(".hub-card", (els) => els.map((a) => a.getAttribute("href")));
-    check("jobs hub links all three pages",
-      hubHrefs.includes("jobs-create.html") && hubHrefs.includes("jobs-offers.html") && hubHrefs.includes("jobs-completed.html"),
+    check("jobs hub links all four pages",
+      hubHrefs.includes("jobs-create.html") && hubHrefs.includes("jobs-offers.html") && hubHrefs.includes("jobs-submit.html") && hubHrefs.includes("jobs-completed.html"),
       hubHrefs.join(","));
+    const hubTitles = await page.$$eval(".hub-card h2", (els) => els.map((e) => e.textContent.trim()));
+    check("jobs hub shows Submit your job as number 3 and Completed jobs as number 4",
+      hubTitles.join("|") === "Post job|Job offers|Submit your job|Completed jobs",
+      hubTitles.join("|"));
 
     // ---------- Job offers ----------
     await page.goto(BASE + "/jobs-offers.html", { waitUntil: "networkidle0" });
@@ -777,6 +782,80 @@ async function main() {
     await sleep(800);
     msg = await firstCard.$eval(".jobMsg", (el) => el.textContent);
     check("onchain gate refusal shows friendly text", msg.includes("Access refused: this Merit lacks the required stamp"), msg);
+
+    // ---------- Submit your job ----------
+    await page.goto(BASE + "/jobs-submit.html", { waitUntil: "networkidle0" });
+    await sleep(900);
+    check("submit page loads with the submit list", await page.$("#submitJobList") !== null);
+    // No wallet: the page asks to connect before it can know whose
+    // jobs these are.
+    await page.evaluate(() => { window.__meritTest.setWallet(null); });
+    await sleep(900);
+    t = await text();
+    check("submit page with no wallet asks to connect", t.includes("Connect your wallet first"), t);
+    // A connected worker with no accepted jobs sees the empty state
+    // and a link back to the offers. carol.testnet owns no Merit in
+    // the stub, so no accepted job is hers.
+    await setWalletStub("carol.testnet");
+    await sleep(900);
+    t = await text();
+    check("submit page empty state when no accepted jobs",
+      t.includes("You have no accepted jobs yet") && t.includes("Job offers"),
+      t);
+    const submitOffersLink = await page.$eval("#submitJobList a", (a) => a.getAttribute("href"));
+    check("submit page empty state links to Job offers", submitOffersLink === "jobs-offers.html", submitOffersLink);
+    // alice.testnet owns merit-1, which took codejob: the accepted
+    // job shows with the evidence form.
+    await setWalletStub("alice.testnet");
+    await sleep(900);
+    t = await text();
+    check("submit page lists the connected worker accepted job", t.toLowerCase().includes("code the widget"), t);
+    let submitCard = await page.$('[data-job-id="codejob"]');
+    check("submit page shows the evidence form for the accepted job",
+      submitCard !== null && (await submitCard.$(".evidenceWork")) !== null && (await submitCard.$(".evidenceFile")) !== null &&
+      (await submitCard.$(".evidenceHash")) !== null && (await submitCard.$(".submitEvidenceBtn")) !== null);
+    check("submit page states the hash comes from the pasted work",
+      t.includes("The hash is worked out from the work pasted here") && t.includes("make sure the link below points to the same work"),
+      t);
+    // Auto-hash: pasting work fills the hash field with its SHA 256.
+    const workText = "hello merit";
+    const workHash = sha(workText);
+    await submitCard.$eval(".evidenceWork", (el) => el.focus());
+    await page.keyboard.type(workText);
+    await sleep(1000);
+    let filledHash = await submitCard.$eval(".evidenceHash", (el) => el.value);
+    check("auto-hash fills the hash field from pasted work", filledHash === workHash, "hash=" + filledHash + " expected=" + workHash);
+    const shownComputed = await submitCard.$eval(".evidenceComputedHash", (el) => el.textContent.trim());
+    check("auto-hash shows the computed hash read only", shownComputed === workHash, shownComputed);
+    // Manual override: a hash typed by hand is not overwritten by
+    // later pasted work.
+    await submitCard.$eval(".evidenceHash", (el) => { el.value = ""; el.dispatchEvent(new Event("input", { bubbles: true })); });
+    await submitCard.$eval(".evidenceHash", (el) => el.focus());
+    await page.keyboard.type(POSTER_EVIDENCE);
+    await sleep(300);
+    await submitCard.$eval(".evidenceWork", (el) => el.focus());
+    await page.keyboard.type(" more work");
+    await sleep(1000);
+    filledHash = await submitCard.$eval(".evidenceHash", (el) => el.value);
+    check("manual hash overrides the computed one", filledHash === POSTER_EVIDENCE, "hash=" + filledHash);
+    // Submit evidence from the submit page builds the same call as
+    // the offers page, and the result shows with hash and next step.
+    await page.evaluate(() => { window.__captured = []; });
+    await submitCard.$eval(".evidenceRef", (el) => { el.value = "https://example.com/codejob.txt"; });
+    await submitCard.$eval(".submitEvidenceBtn", (b) => b.click());
+    await sleep(600);
+    const submitTx = await page.evaluate(() => window.__captured[0]);
+    check("submit page evidence builds submit_evidence call with hash and ref",
+      submitTx && submitTx.actions[0].methodName === "submit_evidence" &&
+      submitTx.actions[0].args.job_id === "codejob" &&
+      submitTx.actions[0].args.evidence_hash === POSTER_EVIDENCE &&
+      submitTx.actions[0].args.evidence_ref === "https://example.com/codejob.txt" &&
+      submitTx.actions[0].deposit === "0",
+      submitTx ? JSON.stringify(submitTx.actions[0]) : "no call captured");
+    const submitStatus = await page.$eval("#pageStatus", (el) => el.textContent);
+    check("submit page evidence result shows in the page status with hash and next step",
+      submitStatus.includes("Evidence submitted") && submitStatus.includes("0123456789…89abcdef") && submitStatus.includes("Next:"),
+      submitStatus);
 
     // ---------- Create job ----------
     await page.goto(BASE + "/jobs-create.html", { waitUntil: "networkidle0" });
@@ -1057,6 +1136,7 @@ async function main() {
       { url: "/jobs.html", slug: "jobs" },
       { url: "/jobs-offers.html", slug: "jobs-offers" },
       { url: "/jobs-create.html", slug: "jobs-create" },
+      { url: "/jobs-submit.html", slug: "jobs-submit" },
       { url: "/jobs-completed.html", slug: "jobs-completed" },
       { url: "/badges.html", slug: "badges" },
       { url: "/dao.html", slug: "dao" },
@@ -1156,7 +1236,7 @@ async function main() {
     // ---------- Copy rule and JS errors ----------
     // Badges is excluded: its badge catalogue copy (approved in the
     // artifact) uses em dashes in the certifies/level lines.
-    for (const url of ["/index.html", "/merit.html?id=merit-1", "/mint.html", "/jobs.html", "/jobs-offers.html", "/jobs-create.html", "/jobs-completed.html", "/dao.html"]) {
+    for (const url of ["/index.html", "/merit.html?id=merit-1", "/mint.html", "/jobs.html", "/jobs-offers.html", "/jobs-create.html", "/jobs-submit.html", "/jobs-completed.html", "/dao.html"]) {
       await page.goto(BASE + url, { waitUntil: "networkidle0" });
       await sleep(600);
       const bodyText = await text();

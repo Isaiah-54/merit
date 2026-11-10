@@ -141,6 +141,144 @@ function buildSubmitEvidenceCall(jobId, evidenceHash, evidenceRef) {
     gas: window.GAS_100,
   };
 }
+// The evidence form, shared by the taken job cards on the offers
+// page and by the Submit your job page. The worker pastes the
+// finished work or picks its file, and the hash is worked out from
+// that work in the browser, so the hash is never typed by hand. A
+// worker who already has a hash can paste it into the hash field
+// instead; a manual entry overrides the computed one.
+function evidenceFormHtml() {
+  return "<div class=\"panel\" style=\"margin-top:10px\"><h3 style=\"margin-top:0\">Submit evidence</h3>" +
+    "<p class=\"muted small\" style=\"margin-top:0\">Post the hash of your evidence, plus a link to the evidence content itself, so the DAO can fetch it and check it against the hash.</p>" +
+    "<label>Your finished work</label>" +
+    "<textarea class=\"evidenceWork\" rows=\"5\" placeholder=\"Paste your finished work here\"></textarea>" +
+    "<label>Or pick the file with your finished work</label>" +
+    "<input type=\"file\" class=\"evidenceFile\">" +
+    "<p class=\"muted small\">Hash from your work: <span class=\"mono evidenceComputedHash\">Not worked out yet.</span> <button type=\"button\" class=\"btn secondary copyComputedHashBtn\" disabled>Copy</button></p>" +
+    "<label>Evidence hash (SHA 256, 64 hex characters)</label>" +
+    "<input type=\"text\" class=\"evidenceHash\" placeholder=\"64 hex characters\" autocomplete=\"off\">" +
+    "<p class=\"muted small\">The hash is worked out from the work pasted here, so make sure the link below points to the same work. If you already have a hash, paste it into the hash field and it overrides the computed one.</p>" +
+    "<label>Evidence reference (optional link to the evidence content)</label>" +
+    "<input type=\"text\" class=\"evidenceRef\" placeholder=\"https://example.com/evidence.txt\" autocomplete=\"off\">" +
+    "<div class=\"vote-row\"><button type=\"button\" class=\"btn secondary submitEvidenceBtn\">Submit evidence</button></div>" +
+    "<div class=\"msg evidenceMsg\" aria-live=\"polite\"></div></div>";
+}
+// Auto-hash: work out the evidence SHA 256 from the work itself, in
+// the browser, so the worker does not type the hash by hand. Pasting
+// work into the text area or picking a file computes the hash with
+// crypto.subtle.digest (through sha256Hex) and fills the hash field.
+// A manual entry in the hash field overrides the computed one, so
+// later pasted work does not overwrite a hash the worker pasted.
+function wireEvidenceAutoHash(card) {
+  const workInput = card.querySelector(".evidenceWork");
+  const fileInput = card.querySelector(".evidenceFile");
+  const hashInput = card.querySelector(".evidenceHash");
+  const computedEl = card.querySelector(".evidenceComputedHash");
+  const copyBtn = card.querySelector(".copyComputedHashBtn");
+  if (!hashInput) return;
+  const showComputed = (hash) => {
+    if (computedEl) computedEl.textContent = hash || "Not worked out yet.";
+    if (copyBtn) copyBtn.disabled = !hash;
+  };
+  const applyComputed = (hash) => {
+    showComputed(hash);
+    if (hashInput.dataset.manual !== "1") hashInput.value = hash;
+  };
+  let workTimer = null;
+  const hashWorkText = () => {
+    const text = workInput ? workInput.value : "";
+    if (!text.trim()) { showComputed(""); return; }
+    try {
+      sha256Hex(new TextEncoder().encode(text)).then(applyComputed).catch(() => { showComputed(""); });
+    } catch (_) { showComputed(""); }
+  };
+  if (workInput) {
+    workInput.addEventListener("input", () => {
+      clearTimeout(workTimer);
+      workTimer = setTimeout(hashWorkText, 300);
+    });
+  }
+  if (fileInput) {
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      try {
+        const buf = await file.arrayBuffer();
+        applyComputed(await sha256Hex(buf));
+      } catch (_) { showComputed(""); }
+    });
+  }
+  hashInput.addEventListener("input", () => {
+    if (!hashInput.value.trim()) { delete hashInput.dataset.manual; return; }
+    hashInput.dataset.manual = "1";
+  });
+  if (copyBtn) {
+    copyBtn.addEventListener("click", async () => {
+      const hash = computedEl ? computedEl.textContent.trim() : "";
+      if (!hash || hash === "Not worked out yet.") return;
+      try { await navigator.clipboard.writeText(hash); copyBtn.textContent = "Copied"; }
+      catch (_) { copyBtn.textContent = "Copy failed"; }
+      setTimeout(() => { copyBtn.textContent = "Copy"; }, 1500);
+    });
+  }
+}
+// Wire one card's evidence: view the posted evidence inline, and
+// submit new evidence. Shared by the taken job cards on the offers
+// page and by the Submit your job page. reloadFn re-reads the list
+// after a successful submission (loadJobs on offers, the submit
+// page loader on the submit page).
+function wireEvidenceForm(card, job, reloadFn) {
+  wireEvidenceAutoHash(card);
+  // View evidence: show the referenced content inline in this card,
+  // instead of opening the raw reference in a new tab. A raw data:
+  // link opens a blank tab on some phones instead of showing the text.
+  card.querySelectorAll(".viewEvidenceBtn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const side = btn.getAttribute("data-side");
+      const row = btn.closest(".evidence-row");
+      const box = row ? row.querySelector(".evidenceContent") : null;
+      const ref = side === "poster" ? job.poster_evidence_ref : job.worker_evidence_ref;
+      btn.disabled = true;
+      try { await showEvidenceContent(box, ref); }
+      finally { btn.disabled = false; }
+    });
+  });
+  // Submit evidence: either side posts the SHA 256 hash of its work
+  // plus an optional reference to where the content lives, so the DAO
+  // can fetch it and check it against the hash. The result shows in
+  // this card's own evidence line, not at the top of the page.
+  const jobId = card.getAttribute("data-job-id");
+  const evidenceBtn = card.querySelector(".submitEvidenceBtn");
+  if (evidenceBtn) evidenceBtn.addEventListener("click", async () => {
+    const hashInput = card.querySelector(".evidenceHash");
+    const refInput = card.querySelector(".evidenceRef");
+    const evMsg = card.querySelector(".evidenceMsg");
+    if (!hashInput || !evMsg) return;
+    if (!walletAccountId) { evMsg.textContent = "Connect your wallet first."; return; }
+    const hash = hashInput.value.trim().toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(hash)) { evMsg.textContent = "Enter the evidence hash: 64 hex characters, the SHA 256 of the evidence content."; return; }
+    const ref = refInput ? refInput.value.trim() : "";
+    evidenceBtn.disabled = true;
+    evMsg.textContent = "Sending evidence. Confirm in your wallet.";
+    try {
+      const call = buildSubmitEvidenceCall(jobId, hash, ref || null);
+      const evRes = await walletCall(contractId(), call.method, call.args, call.depositYocto, call.gas);
+      const evHash = txHashFromWalletResult(evRes);
+      evMsg.innerHTML = txStatusHtml("Evidence submitted. It will show here once the chain confirms it.", evHash, "The poster reviews it, or the DAO judges it if the job is disputed.");
+      // The list re-reads and re-renders, wiping the card message,
+      // so the hash and next step also go to the page status line,
+      // where they stay.
+      setTxStatus("Evidence submitted. It will show here once the chain confirms it.", evHash, "The poster reviews it, or the DAO judges it if the job is disputed.");
+      if (typeof reloadFn === "function") setTimeout(reloadFn, 1500);
+    } catch (e) {
+      let r = null;
+      try { if (typeof classifyFailure === "function") r = classifyFailure(e); } catch (_) { /* fall through */ }
+      evMsg.textContent = r ? r.text : "Rejected. " + (e.message || String(e)).slice(0, 200) + " No money moved.";
+    } finally {
+      evidenceBtn.disabled = false;
+    }
+  });
+}
 // Build the exact DAO proposal call that asks the council to add a
 // completion skill to the registry. Kept separate so the headless
 // verifier can check the call without a real wallet. The proposer
@@ -453,54 +591,9 @@ function wireJobCard(card, job) {
       cancelBtn.disabled = false;
     }
   });
-  // View evidence: show the referenced content inline in this card,
-  // instead of opening the raw reference in a new tab. A raw data:
-  // link opens a blank tab on some phones instead of showing the text.
-  card.querySelectorAll(".viewEvidenceBtn").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const side = btn.getAttribute("data-side");
-      const row = btn.closest(".evidence-row");
-      const box = row ? row.querySelector(".evidenceContent") : null;
-      const ref = side === "poster" ? job.poster_evidence_ref : job.worker_evidence_ref;
-      btn.disabled = true;
-      try { await showEvidenceContent(box, ref); }
-      finally { btn.disabled = false; }
-    });
-  });
-  // Submit evidence: either side posts the SHA 256 hash of its work
-  // plus an optional reference to where the content lives, so the DAO
-  // can fetch it and check it against the hash. The result shows in
-  // this card's own evidence line, not at the top of the page.
-  const evidenceBtn = card.querySelector(".submitEvidenceBtn");
-  if (evidenceBtn) evidenceBtn.addEventListener("click", async () => {
-    const hashInput = card.querySelector(".evidenceHash");
-    const refInput = card.querySelector(".evidenceRef");
-    const evMsg = card.querySelector(".evidenceMsg");
-    if (!hashInput || !evMsg) return;
-    if (!walletAccountId) { evMsg.textContent = "Connect your wallet first."; return; }
-    const hash = hashInput.value.trim().toLowerCase();
-    if (!/^[0-9a-f]{64}$/.test(hash)) { evMsg.textContent = "Enter the evidence hash: 64 hex characters, the SHA 256 of the evidence content."; return; }
-    const ref = refInput ? refInput.value.trim() : "";
-    evidenceBtn.disabled = true;
-    evMsg.textContent = "Sending evidence. Confirm in your wallet.";
-    try {
-      const call = buildSubmitEvidenceCall(jobId, hash, ref || null);
-      const evRes = await walletCall(contractId(), call.method, call.args, call.depositYocto, call.gas);
-      const evHash = txHashFromWalletResult(evRes);
-      evMsg.innerHTML = txStatusHtml("Evidence submitted. It will show here once the chain confirms it.", evHash, "The poster reviews it, or the DAO judges it if the job is disputed.");
-      // Same as cancel: the list re-reads and re-renders, wiping the
-      // card message, so the hash and next step also go to the page
-      // status line, where they stay.
-      setTxStatus("Evidence submitted. It will show here once the chain confirms it.", evHash, "The poster reviews it, or the DAO judges it if the job is disputed.");
-      setTimeout(loadJobs, 1500);
-    } catch (e) {
-      let r = null;
-      try { if (typeof classifyFailure === "function") r = classifyFailure(e); } catch (_) { /* fall through */ }
-      evMsg.textContent = r ? r.text : "Rejected. " + (e.message || String(e)).slice(0, 200) + " No money moved.";
-    } finally {
-      evidenceBtn.disabled = false;
-    }
-  });
+  // Evidence (view the posted evidence, submit new evidence) is
+  // shared with the Submit your job page.
+  wireEvidenceForm(card, job, loadJobs);
 }
 
 // Cache the last good job list in this session, so a failed reload
@@ -640,14 +733,7 @@ async function loadJobs() {
             "<p class=\"muted small\">Job <span class=\"mono\">" + escapeHtml(job.job_id) + "</span> \u2022 Arbiter <span class=\"mono\">" + escapeHtml(job.arbiter || window.DAO_ID) + "</span></p>" +
             completeHtml +
             "<div class=\"msg jobMsg\" aria-live=\"polite\"></div>" +
-            "<div class=\"panel\" style=\"margin-top:10px\"><h3 style=\"margin-top:0\">Submit evidence</h3>" +
-            "<p class=\"muted small\" style=\"margin-top:0\">Post the hash of your evidence, plus a link to the evidence content itself, so the DAO can fetch it and check it against the hash.</p>" +
-            "<label>Evidence hash (SHA 256, 64 hex characters)</label>" +
-            "<input type=\"text\" class=\"evidenceHash\" placeholder=\"64 hex characters\" autocomplete=\"off\">" +
-            "<label>Evidence reference (optional link to the evidence content)</label>" +
-            "<input type=\"text\" class=\"evidenceRef\" placeholder=\"https://example.com/evidence.txt\" autocomplete=\"off\">" +
-            "<div class=\"vote-row\"><button type=\"button\" class=\"btn secondary submitEvidenceBtn\">Submit evidence</button></div>" +
-            "<div class=\"msg evidenceMsg\" aria-live=\"polite\"></div></div>" +
+            evidenceFormHtml() +
             "</div>";
         }).join("") + "</div>";
       }
