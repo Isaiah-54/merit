@@ -267,12 +267,14 @@ function needWallet() {
   if (!walletAccountId) { pageStatus("Connect your wallet first."); return false; }
   return true;
 }
-async function sendWithPending(btn, statusText, method, args, depositYocto, gas) {
+async function sendWithPending(btn, statusText, method, args, depositYocto, gas, statusEl) {
   btn.disabled = true;
-  pageStatus(statusText);
+  const local = statusEl ? el(statusEl) : null;
+  const showStatus = (msg) => { if (local) local.textContent = msg; pageStatus(msg); };
+  showStatus(statusText);
   try {
     await walletCall(contractId(), method, args, depositYocto || "0", gas);
-    pageStatus("Sent. It will show here once the chain confirms it.");
+    showStatus("Sent. It will show here once the chain confirms it.");
     await loadMerit();
     return true;
   } catch (e) {
@@ -347,8 +349,15 @@ document.getElementById("testForm").addEventListener("submit", async (ev) => {
   if (!needWallet()) return;
   const answer = el("testAnswer").value.trim();
   if (!answer) { pageStatus("Enter an answer."); return; }
-  await sendWithPending(el("testBtn"), "Sending answer. Confirm in your wallet.",
-    "pass_test", { token_id: TOKEN_ID, answer: answer }, "0");
+  const ok = await sendWithPending(el("testBtn"), "Sending answer. Confirm in your wallet.",
+    "pass_test", { token_id: TOKEN_ID, answer: answer }, "0", "testStatus");
+  // After the test confirms, the Merit reloads with its new stamp.
+  // Take the visitor up to the Merit card so they see it, instead
+  // of leaving them at the test form with nothing visibly changed.
+  if (ok) {
+    const summary = el("meritSummary");
+    if (summary) { try { summary.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (_) { /* scroll unavailable */ } }
+  }
 });
 
 window.meritWalletChanged = function () { loadMerit(); };
