@@ -144,7 +144,7 @@ async function loadMerit() {
     if (mintDepositText) {
       panelHtml += "<div class=\"kv\"><span>Mint deposit</span><b>" + escapeHtml(mintDepositText) + " NEAR</b></div>";
     }
-    panelHtml += "<p class=\"muted small\" style=\"margin-bottom:0\">Job payments split 95% withdrawable / 5% retained, enforced by the contract. The retained part is what this Merit earned by working: every time its stamps unlock a job, the Merit keeps 5% of that job's pay. It is not a resale cut. A stamped Merit cannot be sold, so the Merit earns by doing the work, not by changing hands. The mint deposit is the 0.05 NEAR that went into the sub-account when the Merit was minted; it is not part of the job split, which is why the three lines add up to the balance.</p>";
+    panelHtml += "<p class=\"muted small\" style=\"margin-bottom:0\">Job payments split 95% withdrawable / 5% retained, enforced by the contract. The retained part is what this Merit earned by working: every time its stamps unlock a job, the Merit keeps 5% of that job's pay. It is not a resale cut. A stamped Merit cannot be sold, so the Merit earns by doing the work, not by changing hands. The retained part can now be spent on kit for this Merit, 0.1 NEAR per kit, from the Buy kit section below. The mint deposit is the 0.05 NEAR that went into the sub-account when the Merit was minted; it is not part of the job split, which is why the three lines add up to the balance.</p>";
     el("balancePanel").innerHTML = panelHtml;
     const wab = el("withdrawAllBtn");
     if (wab) wab.addEventListener("click", () => withdrawAll(withdrawable, wab));
@@ -155,6 +155,21 @@ async function loadMerit() {
     // panel above already names the owner for non-owners.
     const ws = el("withdrawSection");
     if (ws) ws.style.display = isOwner ? "" : "none";
+
+    // Buy kit with retained is owner-only too, same pattern: only
+    // the holder sees the section. The kit price is a fixed 0.1 NEAR
+    // read from the contract, with the same value as the fallback.
+    const buySection = el("buyKitSection");
+    if (buySection) buySection.style.display = isOwner ? "" : "none";
+    let kitPriceYocto = "100000000000000000000000";
+    try {
+      const kp = await view("kit_price", {});
+      if (kp != null) kitPriceYocto = String(kp);
+    } catch (_) { /* fixed 0.1 NEAR fallback */ }
+    const buyPrice = el("buyKitPrice");
+    if (buyPrice) buyPrice.textContent = fmtYocto(kitPriceYocto) + " NEAR";
+    const buyRetained = el("buyKitRetained");
+    if (buyRetained) buyRetained.textContent = fmtYocto(m.balance_retained || "0") + " NEAR";
 
     // The stamp form is issuer-only. Ask the contract whether the
     // connected wallet is a whitelisted issuer; anyone else sees a
@@ -170,7 +185,7 @@ async function loadMerit() {
     if (stampNote) stampNote.style.display = walletIsIssuer ? "none" : "";
 
     const kit = m.kit || [];
-    const kitIntro = "<p class=\"muted small\" style=\"margin-top:0\">The tools this Merit carries. Each tool is a named NFT tied to a credential the Merit holds, kept inside the Merit so the holder always has the right tool for the work its stamps unlock.</p>";
+    const kitIntro = "<p class=\"muted small\" style=\"margin-top:0\">The tools this Merit carries. Each tool is a record held inside the Merit, tied to a credential the Merit holds, so the holder always has the right tool for the work its stamps unlock.</p>";
     if (kit.length === 0) {
       el("kitList").innerHTML = kitIntro + "<p class=\"muted\">No kit inside this Merit yet. Deposit a tool below and it shows here by name.</p>";
     } else {
@@ -232,8 +247,8 @@ function renderNextStep(m) {
   } else if (stamps.length === 0) {
     num = "2";
     label = "Next step: earn your first stamp";
-    text = "This Merit is blank. Pass the test to earn your first stamp and open gated jobs.";
-    action = "<button type=\"button\" class=\"btn\" id=\"nextStepBtn\">Pass the test to earn your first stamp</button>";
+    text = "This Merit is blank. Pass the demo test to earn your first stamp and open gated jobs.";
+    action = "<button type=\"button\" class=\"btn\" id=\"nextStepBtn\">Pass the demo test to earn your first stamp</button>";
   } else {
     num = "4";
     label = "Next step: take a job";
@@ -313,6 +328,19 @@ document.getElementById("depositKitForm").addEventListener("submit", async (ev) 
   if (!kitId) { pageStatus("Enter a kit token id."); return; }
   await sendWithPending(el("depositKitBtn"), "Sending kit deposit. Confirm in your wallet.",
     "deposit_kit", { token_id: TOKEN_ID, kit_token_id: kitId }, "0");
+});
+
+// Buy kit with retained: holder only, spends 0.1 NEAR of the Merit's
+// retained balance on a kit, no deposit attached. The Merit reloads
+// on success, so the new kit and the reduced retained balance show.
+document.getElementById("buyKitForm").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  if (!needWallet()) return;
+  if (MERIT_OWNER && walletAccountId !== MERIT_OWNER) { pageStatus("Only the owner of this Merit can buy kit with its retained balance."); return; }
+  const kitId = el("buyKitId").value.trim();
+  if (!kitId) { pageStatus("Enter a kit id."); return; }
+  await sendWithPending(el("buyKitBtn"), "Sending buy kit. Confirm in your wallet.",
+    "buy_kit", { token_id: TOKEN_ID, kit_token_id: kitId }, "0", undefined, "buyKitStatus");
 });
 
 document.getElementById("withdrawKitForm").addEventListener("submit", async (ev) => {

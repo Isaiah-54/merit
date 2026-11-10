@@ -20,14 +20,20 @@
 //     transfer; revoke ends access; past-expiry lend rejected;
 //     expiry enforced onchain via fast_forward
 //  7. kit: mint, deposit into Merit, withdraw out
-//  8. issuer admin: only owner adds/removes; removed issuer cannot
+//  8. issuer admin: only the DAO adds/removes; removed issuer cannot
 //     stamp; list_issuers shows the seeded "Merit DAO" owner
 //  9. unlocked transfer works and clears any lend
 // 10. poster timeout: release before the deadline fails; release
 //     after the deadline (anyone) pays the worker AND issues the
 //     completion stamp; an open dispute blocks release and
 //     completion; the arbiter DAO resolves (pay_full / refund /
-//     partial); a non-DAO resolve call is rejected
+//     partial); a non-DAO resolve call is rejected; a job's arbiter
+//     is always the DAO (no caller-supplied arbiter)
+// 13. audit regressions (M-01..M-08 + D): completion skill registry,
+//     cancel_job exact-once refund, exact mint deposit, MAX_STAMPS
+//     on completion stamps, evidence refs, bounds + pagination,
+//     buy_kit from retained, DAO-only issuers + revoke_stamp
+//     (lock stays once earned), migrate preserves live state
 // 11. wallet only obeys the parent: a direct payout call on the
 //     sub-account from a non-parent account fails
 // 12. DAO proposal-and-vote (REAL Sputnik v2 in the sandbox,
@@ -225,7 +231,6 @@ async fn create_job(
     min_level: u8,
     timeout_ns: Option<u64>,
     completion: (&str, u8),
-    arbiter: Option<&Account>,
 ) -> anyhow::Result<()> {
     poster
         .call(env.contract.id(), "create_job")
@@ -237,7 +242,6 @@ async fn create_job(
             "completion_stamp": { "skill": completion.0, "level": completion.1 },
             "criteria": CRITERIA,
             "timeout_ns": timeout_ns.map(|t| t.to_string()),
-            "arbiter": arbiter.map(|a| a.id().to_string()),
         }))
         .deposit(NearToken::from_yoctonear(payment))
         .gas(GAS)
@@ -414,8 +418,8 @@ async fn stamp_locks_and_whitelist_rules() -> anyhow::Result<()> {
     assert!(bad.is_failure(), "level 4 stamp must fail");
     assert!(failures_contain(&bad, "level must be 1-3"));
 
-    // Owner adds Carol as "Carol Crafts"; she can stamp with her name.
-    env.owner
+    // The DAO adds Carol as "Carol Crafts"; she can stamp with her name.
+    env.dao
         .call(cid, "add_issuer")
         .args_json(json!({ "account_id": env.carol.id(), "name": "Carol Crafts" }))
         .gas(GAS)
@@ -427,7 +431,7 @@ async fn stamp_locks_and_whitelist_rules() -> anyhow::Result<()> {
     assert_eq!(merit["stamps"][1]["issuer_name"], "Carol Crafts");
     assert_eq!(merit["level"], 3);
 
-    // Non-owner cannot add an issuer.
+    // Non-DAO cannot add an issuer.
     let bad = env
         .alice
         .call(cid, "add_issuer")
@@ -435,10 +439,10 @@ async fn stamp_locks_and_whitelist_rules() -> anyhow::Result<()> {
         .gas(GAS)
         .transact()
         .await?;
-    assert!(bad.is_failure(), "non-owner add_issuer must fail");
+    assert!(bad.is_failure(), "non-DAO add_issuer must fail");
 
-    // Owner removes Carol; she can no longer stamp.
-    env.owner
+    // The DAO removes Carol; she can no longer stamp.
+    env.dao
         .call(cid, "remove_issuer")
         .args_json(json!({ "account_id": env.carol.id() }))
         .gas(GAS)
@@ -504,7 +508,7 @@ async fn job_flow_poster_confirms_and_money_lands_in_subaccount() -> anyhow::Res
     mint(&env, &env.alice, "merit-1").await?;
     stamp(&env, &env.owner, "merit-1", "welding", 2).await?;
     // Bob posts a 2 NEAR job requiring welding level 2.
-    create_job(&env, &env.bob, "weld-1", 2 * N, "welding", 2, None, ("gate-welding", 1), None).await?;
+    create_job(&env, &env.bob, "weld-1", 2 * N, "welding", 2, None, ("gate-welding", 1)).await?;
     let job = get_job(&env, "weld-1").await?;
     assert_eq!(job["payment"], y(2 * N));
     assert_eq!(job["status"], "Open");
@@ -618,7 +622,7 @@ async fn gate_denied_without_stamp() -> anyhow::Result<()> {
     let env = setup().await?;
     let cid = env.contract.id();
     mint(&env, &env.alice, "merit-1").await?;
-    create_job(&env, &env.bob, "weld-1", N, "welding", 1, None, ("gate-welding", 1), None).await?;
+    create_job(&env, &env.bob, "weld-1", N, "welding", 1, None, ("gate-welding", 1)).await?;
     let can: bool = env
         .worker
         .view(cid, "can_access")
@@ -644,7 +648,7 @@ async fn lend_rules() -> anyhow::Result<()> {
     let cid = env.contract.id();
     mint(&env, &env.alice, "merit-1").await?;
     stamp(&env, &env.owner, "merit-1", "welding", 1).await?;
-    create_job(&env, &env.bob, "weld-1", N, "welding", 1, None, ("gate-welding", 1), None).await?;
+    create_job(&env, &env.bob, "weld-1", N, "welding", 1, None, ("gate-welding", 1)).await?;
     // Lend to Bob for 1 hour from the stamp time.
     let merit = get_merit(&env, "merit-1").await?;
     let now_ns: u64 = merit["stamps"][0]["stamped_at"]
@@ -732,7 +736,7 @@ async fn lend_expiry_enforced_onchain() -> anyhow::Result<()> {
     let cid = env.contract.id();
     mint(&env, &env.alice, "merit-1").await?;
     stamp(&env, &env.owner, "merit-1", "welding", 1).await?;
-    create_job(&env, &env.bob, "weld-1", N, "welding", 1, None, ("gate-welding", 1), None).await?;
+    create_job(&env, &env.bob, "weld-1", N, "welding", 1, None, ("gate-welding", 1)).await?;
     // Lend for ~5 seconds from a FRESH onchain timestamp (re-stamp
     // to refresh stamped_at), then fast-forward past it.
     stamp(&env, &env.owner, "merit-1", "welding", 1).await?;
@@ -837,7 +841,7 @@ async fn issuer_admin() -> anyhow::Result<()> {
     let env = setup().await?;
     let cid = env.contract.id();
     mint(&env, &env.alice, "merit-1").await?;
-    // Non-owner cannot add an issuer.
+    // Non-DAO cannot add an issuer.
     let bad = env
         .alice
         .call(cid, "add_issuer")
@@ -845,8 +849,8 @@ async fn issuer_admin() -> anyhow::Result<()> {
         .gas(GAS)
         .transact()
         .await?;
-    assert!(bad.is_failure(), "non-owner add_issuer must fail");
-    env.owner
+    assert!(bad.is_failure(), "non-DAO add_issuer must fail");
+    env.dao
         .call(cid, "add_issuer")
         .args_json(json!({ "account_id": env.carol.id(), "name": "Carol Crafts" }))
         .gas(GAS)
@@ -857,7 +861,7 @@ async fn issuer_admin() -> anyhow::Result<()> {
     let merit = get_merit(&env, "merit-1").await?;
     assert_eq!(merit["stamps"][0]["issuer"], env.carol.id().to_string());
     assert_eq!(merit["stamps"][0]["issuer_name"], "Carol Crafts");
-    env.owner
+    env.dao
         .call(cid, "remove_issuer")
         .args_json(json!({ "account_id": env.carol.id() }))
         .gas(GAS)
@@ -939,7 +943,7 @@ async fn timeout_release_pays_worker_after_deadline() -> anyhow::Result<()> {
     mint(&env, &env.alice, "merit-1").await?;
     stamp(&env, &env.owner, "merit-1", "welding", 1).await?;
     // 5-second timeout so the test can pass the deadline.
-    create_job(&env, &env.bob, "weld-1", N, "welding", 1, Some(5_000_000_000), ("welding", 1), None).await?;
+    create_job(&env, &env.bob, "weld-1", N, "welding", 1, Some(5_000_000_000), ("welding", 1)).await?;
     env.alice
         .call(cid, "accept_job")
         .args_json(json!({ "job_id": "weld-1", "token_id": "merit-1" }))
@@ -1004,7 +1008,7 @@ async fn dispute_blocks_release_and_completion() -> anyhow::Result<()> {
     let cid = env.contract.id();
     mint(&env, &env.alice, "merit-1").await?;
     stamp(&env, &env.owner, "merit-1", "welding", 1).await?;
-    create_job(&env, &env.bob, "weld-1", N, "welding", 1, Some(5_000_000_000), ("welding", 1), None).await?;
+    create_job(&env, &env.bob, "weld-1", N, "welding", 1, Some(5_000_000_000), ("welding", 1)).await?;
     env.alice
         .call(cid, "accept_job")
         .args_json(json!({ "job_id": "weld-1", "token_id": "merit-1" }))
@@ -1037,14 +1041,14 @@ async fn dispute_blocks_release_and_completion() -> anyhow::Result<()> {
     let worker_ev = evidence_hash(b"worker photos: finished gate");
     env.bob
         .call(cid, "submit_evidence")
-        .args_json(json!({ "job_id": "weld-1", "evidence_hash": poster_ev }))
+        .args_json(json!({ "job_id": "weld-1", "evidence_hash": poster_ev, "evidence_ref": null }))
         .gas(GAS)
         .transact()
         .await?
         .into_result()?;
     env.alice
         .call(cid, "submit_evidence")
-        .args_json(json!({ "job_id": "weld-1", "evidence_hash": worker_ev }))
+        .args_json(json!({ "job_id": "weld-1", "evidence_hash": worker_ev, "evidence_ref": null }))
         .gas(GAS)
         .transact()
         .await?
@@ -1056,7 +1060,7 @@ async fn dispute_blocks_release_and_completion() -> anyhow::Result<()> {
     let bad = env
         .bob
         .call(cid, "submit_evidence")
-        .args_json(json!({ "job_id": "weld-1", "evidence_hash": "xyz" }))
+        .args_json(json!({ "job_id": "weld-1", "evidence_hash": "xyz", "evidence_ref": null }))
         .gas(GAS)
         .transact()
         .await?;
@@ -1241,7 +1245,6 @@ async fn disputed_job(env: &DaoEnv, job_id: &str, poster: &Account) -> anyhow::R
             "completion_stamp": { "skill": "gate-welding", "level": 1 },
             "criteria": CRITERIA,
             "timeout_ns": null,
-            "arbiter": null,
         }))
         .deposit(NearToken::from_yoctonear(N))
         .gas(GAS)
@@ -1264,14 +1267,14 @@ async fn disputed_job(env: &DaoEnv, job_id: &str, poster: &Account) -> anyhow::R
         .into_result()?;
     poster
         .call(cid, "submit_evidence")
-        .args_json(json!({ "job_id": job_id, "evidence_hash": evidence_hash(b"poster evidence: photos of the gate") }))
+        .args_json(json!({ "job_id": job_id, "evidence_hash": evidence_hash(b"poster evidence: photos of the gate"), "evidence_ref": null }))
         .gas(GAS)
         .transact()
         .await?
         .into_result()?;
     env.alice
         .call(cid, "submit_evidence")
-        .args_json(json!({ "job_id": job_id, "evidence_hash": evidence_hash(b"worker evidence: finished gate photos") }))
+        .args_json(json!({ "job_id": job_id, "evidence_hash": evidence_hash(b"worker evidence: finished gate photos"), "evidence_ref": null }))
         .gas(GAS)
         .transact()
         .await?
@@ -1489,5 +1492,939 @@ async fn dao_proposal_rejected_leaves_dispute_open() -> anyhow::Result<()> {
     assert_eq!(p2["status"], "Approved");
     let job = dao_get_job(&env, "weld-1").await?;
     assert_eq!(job["status"], "Refunded");
+    Ok(())
+}
+
+// ---- Audit regression tests (M-01..M-08 + D) ----
+
+/// M-01: the completion skill registry gates job awards.
+#[tokio::test]
+async fn completion_skill_registry_gates_jobs() -> anyhow::Result<()> {
+    let env = setup().await?;
+    let cid = env.contract.id();
+    let skills: Vec<String> = env
+        .worker
+        .view(cid, "list_completion_skills")
+        .args_json(json!({}))
+        .await?
+        .json()?;
+    assert_eq!(
+        skills,
+        vec![
+            "welding",
+            "torch-work",
+            "gate-welding",
+            "repair-welding",
+            "merit-basics",
+            "coding",
+            "design",
+            "writing",
+            "data-entry",
+        ],
+        "registry seeds exactly the nine agreed skills"
+    );
+    // An unregistered completion skill is rejected at posting.
+    let bad = env
+        .bob
+        .call(cid, "create_job")
+        .args_json(json!({
+            "job_id": "bad-1",
+            "title": "Job bad-1",
+            "description": "Test job",
+            "required_stamps": [],
+            "completion_stamp": { "skill": "brain-surgery", "level": 3 },
+            "criteria": CRITERIA,
+            "timeout_ns": null,
+        }))
+        .deposit(NearToken::from_yoctonear(N))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "unregistered completion skill must fail");
+    assert!(failures_contain(&bad, "not registered"));
+    // Only the DAO may extend the registry: the owner cannot.
+    let bad = env
+        .owner
+        .call(cid, "add_completion_skill")
+        .args_json(json!({ "skill": "plumbing" }))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "non-DAO add_completion_skill must fail");
+    assert!(failures_contain(&bad, "not the Merit DAO"));
+    // The DAO adds plumbing; a job awarding it now succeeds.
+    env.dao
+        .call(cid, "add_completion_skill")
+        .args_json(json!({ "skill": "plumbing" }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    create_job(&env, &env.bob, "plumb-1", N, "welding", 1, None, ("plumbing", 1)).await?;
+    let job = get_job(&env, "plumb-1").await?;
+    assert_eq!(job["completion_stamp"]["skill"], "plumbing");
+    // The DAO removes it again; new jobs awarding it fail.
+    env.dao
+        .call(cid, "remove_completion_skill")
+        .args_json(json!({ "skill": "plumbing" }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    let skills: Vec<String> = env
+        .worker
+        .view(cid, "list_completion_skills")
+        .args_json(json!({}))
+        .await?
+        .json()?;
+    assert!(!skills.contains(&"plumbing".to_string()));
+    let bad = env
+        .bob
+        .call(cid, "create_job")
+        .args_json(json!({
+            "job_id": "plumb-2",
+            "title": "Job plumb-2",
+            "description": "Test job",
+            "required_stamps": [],
+            "completion_stamp": { "skill": "plumbing", "level": 1 },
+            "criteria": CRITERIA,
+            "timeout_ns": null,
+        }))
+        .deposit(NearToken::from_yoctonear(N))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "removed completion skill must fail");
+    assert!(failures_contain(&bad, "not registered"));
+    Ok(())
+}
+
+/// M-02: a job's arbiter is always the DAO, whatever the caller sends.
+#[tokio::test]
+async fn arbiter_is_always_dao() -> anyhow::Result<()> {
+    let env = setup().await?;
+    let cid = env.contract.id();
+    create_job(&env, &env.bob, "weld-1", N, "welding", 1, None, ("gate-welding", 1)).await?;
+    let job = get_job(&env, "weld-1").await?;
+    assert_eq!(job["arbiter"], env.dao.id().to_string(), "arbiter is the DAO");
+    // Even a caller-supplied arbiter in the args is ignored.
+    env.bob
+        .call(cid, "create_job")
+        .args_json(json!({
+            "job_id": "weld-2",
+            "title": "Job weld-2",
+            "description": "Test job",
+            "required_stamps": [{ "skill": "welding", "min_level": 1 }],
+            "completion_stamp": { "skill": "gate-welding", "level": 1 },
+            "criteria": CRITERIA,
+            "timeout_ns": null,
+            "arbiter": env.bob.id().to_string(),
+        }))
+        .deposit(NearToken::from_yoctonear(N))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    let job = get_job(&env, "weld-2").await?;
+    assert_eq!(
+        job["arbiter"],
+        env.dao.id().to_string(),
+        "a poster-supplied arbiter must not stick"
+    );
+    Ok(())
+}
+
+/// M-03: cancel_job refunds the exact escrow once, poster-only, Open-only.
+#[tokio::test]
+async fn cancel_job_refunds_exactly_once() -> anyhow::Result<()> {
+    let env = setup().await?;
+    let cid = env.contract.id();
+    create_job(&env, &env.bob, "weld-1", N, "welding", 1, None, ("gate-welding", 1)).await?;
+    // A non-poster cannot cancel.
+    let bad = env
+        .alice
+        .call(cid, "cancel_job")
+        .args_json(json!({ "job_id": "weld-1" }))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "non-poster cancel must fail");
+    assert!(failures_contain(&bad, "only the poster may cancel"));
+    // The poster cancels: the contract balance falls by exactly 1 NEAR.
+    let before = env
+        .contract
+        .as_account()
+        .view_account()
+        .await?
+        .balance
+        .as_yoctonear();
+    env.bob
+        .call(cid, "cancel_job")
+        .args_json(json!({ "job_id": "weld-1" }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    let after = env
+        .contract
+        .as_account()
+        .view_account()
+        .await?
+        .balance
+        .as_yoctonear();
+    assert_eq!(before - after, N, "cancel must refund the exact escrow once");
+    let job = get_job(&env, "weld-1").await?;
+    assert_eq!(job["status"], "Cancelled");
+    assert_eq!(job["refund_pending"], false, "refund settled, nothing pending");
+    // Duplicate cancel fails: the job is no longer Open.
+    let bad = env
+        .bob
+        .call(cid, "cancel_job")
+        .args_json(json!({ "job_id": "weld-1" }))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "duplicate cancel must fail");
+    assert!(failures_contain(&bad, "only an open job can be cancelled"));
+    // Retry with nothing pending fails too.
+    let bad = env
+        .bob
+        .call(cid, "retry_cancel_refund")
+        .args_json(json!({ "job_id": "weld-1" }))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "retry with nothing pending must fail");
+    // Cancel after acceptance fails.
+    mint(&env, &env.alice, "merit-1").await?;
+    stamp(&env, &env.owner, "merit-1", "welding", 1).await?;
+    create_job(&env, &env.bob, "weld-2", N, "welding", 1, None, ("gate-welding", 1)).await?;
+    env.alice
+        .call(cid, "accept_job")
+        .args_json(json!({ "job_id": "weld-2", "token_id": "merit-1" }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    let bad = env
+        .bob
+        .call(cid, "cancel_job")
+        .args_json(json!({ "job_id": "weld-2" }))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "cancel after acceptance must fail");
+    assert!(failures_contain(&bad, "only an open job can be cancelled"));
+    Ok(())
+}
+
+/// M-04: nft_mint requires exactly 0.1 NEAR — over and under both fail.
+#[tokio::test]
+async fn mint_requires_exact_deposit() -> anyhow::Result<()> {
+    let env = setup().await?;
+    let cid = env.contract.id();
+    let over = env
+        .alice
+        .call(cid, "nft_mint")
+        .args_json(json!({ "token_id": "merit-1", "receiver_id": env.alice.id() }))
+        .deposit(NearToken::from_yoctonear(N / 10 + 1))
+        .gas(MINT_GAS)
+        .transact()
+        .await?;
+    assert!(over.is_failure(), "overpayment must fail");
+    assert!(failures_contain(&over, "exactly 0.1 NEAR"));
+    let under = env
+        .alice
+        .call(cid, "nft_mint")
+        .args_json(json!({ "token_id": "merit-1", "receiver_id": env.alice.id() }))
+        .deposit(NearToken::from_yoctonear(N / 10 - 1))
+        .gas(MINT_GAS)
+        .transact()
+        .await?;
+    assert!(under.is_failure(), "underpayment must fail");
+    assert!(failures_contain(&under, "exactly 0.1 NEAR"));
+    mint(&env, &env.alice, "merit-1").await?;
+    let merit = get_merit(&env, "merit-1").await?;
+    assert_eq!(merit["level"], 0, "exact payment still mints");
+    Ok(())
+}
+
+/// M-05: completion stamps obey the 64-stamp cap; updating an
+/// existing skill at the cap still works, and a failed completion
+/// settles nothing.
+#[tokio::test]
+async fn completion_stamp_cap_enforced() -> anyhow::Result<()> {
+    let env = setup().await?;
+    let cid = env.contract.id();
+    mint(&env, &env.alice, "merit-1").await?;
+    stamp(&env, &env.owner, "merit-1", "welding", 1).await?;
+    for i in 0..63u32 {
+        stamp(&env, &env.owner, "merit-1", &format!("skill-{:02}", i), 1).await?;
+    }
+    let merit = get_merit(&env, "merit-1").await?;
+    assert_eq!(merit["stamps"].as_array().unwrap().len(), 64);
+    // A job completing with a NEW registered skill fails safely.
+    env.bob
+        .call(cid, "create_job")
+        .args_json(json!({
+            "job_id": "cap-1",
+            "title": "Job cap-1",
+            "description": "Test job",
+            "required_stamps": [],
+            "completion_stamp": { "skill": "coding", "level": 1 },
+            "criteria": CRITERIA,
+            "timeout_ns": null,
+        }))
+        .deposit(NearToken::from_yoctonear(N))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    env.alice
+        .call(cid, "accept_job")
+        .args_json(json!({ "job_id": "cap-1", "token_id": "merit-1" }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    let bad = env
+        .bob
+        .call(cid, "complete_job")
+        .args_json(json!({ "job_id": "cap-1", "token_id": "merit-1" }))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "completion past the cap must fail");
+    assert!(failures_contain(&bad, "too many distinct stamps"));
+    // Nothing settled: the job is still Accepted, no money moved.
+    let job = get_job(&env, "cap-1").await?;
+    assert_eq!(job["status"], "Accepted");
+    assert_eq!(sub_balance(&env, "merit-1").await?, N / 20, "no payment on a failed completion");
+    let merit = get_merit(&env, "merit-1").await?;
+    assert_eq!(merit["balance_withdrawable"], y(0));
+    // Updating an EXISTING skill at the cap succeeds.
+    env.bob
+        .call(cid, "create_job")
+        .args_json(json!({
+            "job_id": "cap-2",
+            "title": "Job cap-2",
+            "description": "Test job",
+            "required_stamps": [],
+            "completion_stamp": { "skill": "welding", "level": 3 },
+            "criteria": CRITERIA,
+            "timeout_ns": null,
+        }))
+        .deposit(NearToken::from_yoctonear(N))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    env.alice
+        .call(cid, "accept_job")
+        .args_json(json!({ "job_id": "cap-2", "token_id": "merit-1" }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    env.bob
+        .call(cid, "complete_job")
+        .args_json(json!({ "job_id": "cap-2", "token_id": "merit-1" }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    let merit = get_merit(&env, "merit-1").await?;
+    assert_eq!(merit["stamps"].as_array().unwrap().len(), 64, "still 64 stamps");
+    assert_eq!(merit["balance_withdrawable"], y(95 * N / 100));
+    let updated = merit["stamps"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["skill"] == "welding")
+        .expect("welding present");
+    assert_eq!(updated["level"], 3, "existing skill level rises at the cap");
+    Ok(())
+}
+
+/// M-06: evidence refs are stored alongside the hashes, per side.
+#[tokio::test]
+async fn evidence_reference_stored() -> anyhow::Result<()> {
+    let env = setup().await?;
+    let cid = env.contract.id();
+    mint(&env, &env.alice, "merit-1").await?;
+    stamp(&env, &env.owner, "merit-1", "welding", 1).await?;
+    create_job(&env, &env.bob, "weld-1", N, "welding", 1, Some(5_000_000_000), ("gate-welding", 1)).await?;
+    env.alice
+        .call(cid, "accept_job")
+        .args_json(json!({ "job_id": "weld-1", "token_id": "merit-1" }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    env.bob
+        .call(cid, "raise_dispute")
+        .args_json(json!({ "job_id": "weld-1" }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    let poster_hash = evidence_hash(b"poster photos");
+    let worker_hash = evidence_hash(b"worker photos");
+    env.bob
+        .call(cid, "submit_evidence")
+        .args_json(json!({
+            "job_id": "weld-1",
+            "evidence_hash": poster_hash,
+            "evidence_ref": "ipfs://bafyposter",
+        }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    env.alice
+        .call(cid, "submit_evidence")
+        .args_json(json!({
+            "job_id": "weld-1",
+            "evidence_hash": worker_hash,
+            "evidence_ref": "ipfs://bafyworker",
+        }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    let job = get_job(&env, "weld-1").await?;
+    assert_eq!(job["poster_evidence"], poster_hash);
+    assert_eq!(job["poster_evidence_ref"], "ipfs://bafyposter");
+    assert_eq!(job["worker_evidence"], worker_hash);
+    assert_eq!(job["worker_evidence_ref"], "ipfs://bafyworker");
+    // Re-submit with no ref clears the reference (latest counts).
+    env.bob
+        .call(cid, "submit_evidence")
+        .args_json(json!({
+            "job_id": "weld-1",
+            "evidence_hash": poster_hash,
+            "evidence_ref": null,
+        }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    let job = get_job(&env, "weld-1").await?;
+    assert_eq!(job["poster_evidence_ref"], serde_json::Value::Null);
+    // Hash validation still applies with a ref present.
+    let bad = env
+        .bob
+        .call(cid, "submit_evidence")
+        .args_json(json!({
+            "job_id": "weld-1",
+            "evidence_hash": "xyz",
+            "evidence_ref": "ipfs://bafywhatever",
+        }))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "bad evidence hash must still fail");
+    Ok(())
+}
+
+/// M-07: job input bounds and paginated list views.
+#[tokio::test]
+async fn job_bounds_and_pagination() -> anyhow::Result<()> {
+    let env = setup().await?;
+    let cid = env.contract.id();
+    // Description over 2000 chars is rejected; exactly 2000 is fine.
+    let bad = env
+        .bob
+        .call(cid, "create_job")
+        .args_json(json!({
+            "job_id": "long-1",
+            "title": "Job long-1",
+            "description": "x".repeat(2001),
+            "required_stamps": [],
+            "completion_stamp": { "skill": "welding", "level": 1 },
+            "criteria": CRITERIA,
+            "timeout_ns": null,
+        }))
+        .deposit(NearToken::from_yoctonear(N))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "2001-char description must fail");
+    assert!(failures_contain(&bad, "at most 2000 characters"));
+    env.bob
+        .call(cid, "create_job")
+        .args_json(json!({
+            "job_id": "long-2",
+            "title": "Job long-2",
+            "description": "x".repeat(2000),
+            "required_stamps": [],
+            "completion_stamp": { "skill": "welding", "level": 1 },
+            "criteria": CRITERIA,
+            "timeout_ns": null,
+        }))
+        .deposit(NearToken::from_yoctonear(N))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    // 11 required stamps is rejected; 10 is fine.
+    let eleven: Vec<serde_json::Value> = (0..11)
+        .map(|i| json!({ "skill": format!("skill-{}", i), "min_level": 1 }))
+        .collect();
+    let bad = env
+        .bob
+        .call(cid, "create_job")
+        .args_json(json!({
+            "job_id": "many-1",
+            "title": "Job many-1",
+            "description": "Test job",
+            "required_stamps": eleven,
+            "completion_stamp": { "skill": "welding", "level": 1 },
+            "criteria": CRITERIA,
+            "timeout_ns": null,
+        }))
+        .deposit(NearToken::from_yoctonear(N))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "11 required stamps must fail");
+    assert!(failures_contain(&bad, "at most 10 entries"));
+    let ten: Vec<serde_json::Value> = (0..10)
+        .map(|i| json!({ "skill": format!("skill-{}", i), "min_level": 1 }))
+        .collect();
+    env.bob
+        .call(cid, "create_job")
+        .args_json(json!({
+            "job_id": "many-2",
+            "title": "Job many-2",
+            "description": "Test job",
+            "required_stamps": ten,
+            "completion_stamp": { "skill": "welding", "level": 1 },
+            "criteria": CRITERIA,
+            "timeout_ns": null,
+        }))
+        .deposit(NearToken::from_yoctonear(N))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    // Pagination: 2 jobs exist (long-2, many-2); add a third.
+    create_job(&env, &env.bob, "pg-3", N, "welding", 1, None, ("gate-welding", 1)).await?;
+    let page1: serde_json::Value = env
+        .worker
+        .view(cid, "list_jobs")
+        .args_json(json!({ "from_index": "0", "limit": 2 }))
+        .await?
+        .json()?;
+    assert_eq!(page1.as_array().unwrap().len(), 2);
+    assert_eq!(page1[0]["job_id"], "long-2", "stable ordering, first page");
+    let page2: serde_json::Value = env
+        .worker
+        .view(cid, "list_jobs")
+        .args_json(json!({ "from_index": "2", "limit": 2 }))
+        .await?
+        .json()?;
+    assert_eq!(page2.as_array().unwrap().len(), 1);
+    assert_eq!(page2[0]["job_id"], "pg-3", "second page continues");
+    // A limit above the cap is capped, not an error.
+    let all: serde_json::Value = env
+        .worker
+        .view(cid, "list_jobs")
+        .args_json(json!({ "from_index": "0", "limit": 100 }))
+        .await?
+        .json()?;
+    assert_eq!(all.as_array().unwrap().len(), 3);
+    // Extreme pagination values return empty, never trap.
+    let none: serde_json::Value = env
+        .worker
+        .view(cid, "list_jobs")
+        .args_json(json!({ "from_index": "18446744073709551615", "limit": 18446744073709551615u64 }))
+        .await?
+        .json()?;
+    assert_eq!(none.as_array().unwrap().len(), 0);
+    let none: serde_json::Value = env
+        .worker
+        .view(cid, "list_issuers")
+        .args_json(json!({ "from_index": "18446744073709551615", "limit": 18446744073709551615u64 }))
+        .await?
+        .json()?;
+    assert_eq!(none.as_array().unwrap().len(), 0);
+    let issuers: serde_json::Value = env
+        .worker
+        .view(cid, "list_issuers")
+        .args_json(json!({ "from_index": "0", "limit": 50 }))
+        .await?
+        .json()?;
+    assert_eq!(issuers.as_array().unwrap().len(), 1);
+    let none: serde_json::Value = env
+        .worker
+        .view(cid, "nft_tokens")
+        .args_json(json!({ "from_index": "18446744073709551615", "limit": 18446744073709551615u64 }))
+        .await?
+        .json()?;
+    assert_eq!(none.as_array().unwrap().len(), 0);
+    Ok(())
+}
+
+/// M-08: buy_kit spends retained balance, pays the seller, and
+/// never touches withdrawable funds.
+#[tokio::test]
+async fn buy_kit_spends_retained() -> anyhow::Result<()> {
+    let env = setup().await?;
+    let cid = env.contract.id();
+    mint(&env, &env.alice, "merit-1").await?;
+    stamp(&env, &env.owner, "merit-1", "welding", 2).await?;
+    create_job(&env, &env.bob, "weld-1", 2 * N, "welding", 2, None, ("gate-welding", 1)).await?;
+    env.alice
+        .call(cid, "accept_job")
+        .args_json(json!({ "job_id": "weld-1", "token_id": "merit-1" }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    env.bob
+        .call(cid, "complete_job")
+        .args_json(json!({ "job_id": "weld-1", "token_id": "merit-1" }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    let merit = get_merit(&env, "merit-1").await?;
+    assert_eq!(merit["balance_withdrawable"], y(19 * N / 10));
+    assert_eq!(merit["balance_retained"], y(N / 10));
+    // kit_price view reports 0.1 NEAR.
+    let price: String = env
+        .worker
+        .view(cid, "kit_price")
+        .args_json(json!({}))
+        .await?
+        .json()?;
+    assert_eq!(price, y(N / 10));
+    // The seller (bob) owns torch-9; the holder cannot buy a kit
+    // that does not exist, and a non-holder cannot buy at all.
+    env.owner
+        .call(cid, "mint_kit")
+        .args_json(json!({
+            "kit_token_id": "torch-9",
+            "name": "Welding Torch",
+            "receiver_id": env.bob.id(),
+        }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    let bad = env
+        .bob
+        .call(cid, "buy_kit")
+        .args_json(json!({ "token_id": "merit-1", "kit_token_id": "torch-9" }))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "non-holder buy_kit must fail");
+    assert!(failures_contain(&bad, "not the Merit holder"));
+    let bad = env
+        .alice
+        .call(cid, "buy_kit")
+        .args_json(json!({ "token_id": "merit-1", "kit_token_id": "no-such-kit" }))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "buying a missing kit must fail");
+    assert!(failures_contain(&bad, "kit not found"));
+    // The holder buys: retained 0.1 -> 0, seller gains exactly 0.1.
+    let seller_before = env.bob.view_account().await?.balance.as_yoctonear();
+    env.alice
+        .call(cid, "buy_kit")
+        .args_json(json!({ "token_id": "merit-1", "kit_token_id": "torch-9" }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    let seller_after = env.bob.view_account().await?.balance.as_yoctonear();
+    assert_eq!(seller_after - seller_before, N / 10, "seller is paid exactly the kit price");
+    let merit = get_merit(&env, "merit-1").await?;
+    assert_eq!(merit["balance_retained"], y(0), "retained is spent");
+    assert_eq!(
+        merit["balance_withdrawable"],
+        y(19 * N / 10),
+        "withdrawable is untouched by buy_kit"
+    );
+    assert_eq!(merit["kit"], json!(["torch-9"]));
+    assert_eq!(
+        sub_balance(&env, "merit-1").await?,
+        N / 20 + 19 * N / 10,
+        "sub-account keeps init + withdrawable after the kit payout"
+    );
+    let kit: serde_json::Value = env
+        .worker
+        .view(cid, "get_kit")
+        .args_json(json!({ "kit_token_id": "torch-9" }))
+        .await?
+        .json()?;
+    assert_eq!(kit["owner_id"], env.alice.id().to_string());
+    assert_eq!(kit["inside_merit"], "merit-1");
+    // A second kit is unaffordable now: retained is empty.
+    env.owner
+        .call(cid, "mint_kit")
+        .args_json(json!({
+            "kit_token_id": "torch-10",
+            "name": "Spare Torch",
+            "receiver_id": env.bob.id(),
+        }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    let bad = env
+        .alice
+        .call(cid, "buy_kit")
+        .args_json(json!({ "token_id": "merit-1", "kit_token_id": "torch-10" }))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "buy_kit without retained funds must fail");
+    assert!(failures_contain(&bad, "below the kit price"));
+    Ok(())
+}
+
+/// D: issuer control is DAO-only, and revoke_stamp removes a stamp
+/// without unlocking the Merit (the lock stays once earned).
+#[tokio::test]
+async fn dao_issuer_governance_and_revoke_stamp() -> anyhow::Result<()> {
+    let env = setup().await?;
+    let cid = env.contract.id();
+    mint(&env, &env.alice, "merit-1").await?;
+    // The owner can no longer add issuers: only the DAO can.
+    let bad = env
+        .owner
+        .call(cid, "add_issuer")
+        .args_json(json!({ "account_id": env.carol.id(), "name": "Carol Crafts" }))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "owner add_issuer must fail");
+    assert!(failures_contain(&bad, "not the Merit DAO"));
+    let bad = env
+        .owner
+        .call(cid, "remove_issuer")
+        .args_json(json!({ "account_id": env.owner.id() }))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "owner remove_issuer must fail");
+    // The DAO adds Carol; she stamps plumbing.
+    env.dao
+        .call(cid, "add_issuer")
+        .args_json(json!({ "account_id": env.carol.id(), "name": "Carol Crafts" }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    stamp(&env, &env.carol, "merit-1", "plumbing", 1).await?;
+    // The DAO revokes the stamp: it is gone, but the Merit stays locked.
+    env.dao
+        .call(cid, "revoke_stamp")
+        .args_json(json!({ "token_id": "merit-1", "skill": "plumbing" }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    let merit = get_merit(&env, "merit-1").await?;
+    assert_eq!(merit["stamps"].as_array().unwrap().len(), 0, "stamp revoked");
+    assert_eq!(merit["level"], 0);
+    assert_eq!(merit["locked"], true, "revoking the last stamp does NOT unlock");
+    let bad = env
+        .alice
+        .call(cid, "nft_transfer")
+        .args_json(json!({ "receiver_id": env.bob.id(), "token_id": "merit-1" }))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "revoked Merit still cannot transfer");
+    assert!(failures_contain(&bad, "locked Merit cannot be transferred"));
+    // The recorded issuer may revoke their own stamp.
+    stamp(&env, &env.owner, "merit-1", "welding", 2).await?;
+    env.owner
+        .call(cid, "revoke_stamp")
+        .args_json(json!({ "token_id": "merit-1", "skill": "welding" }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    let merit = get_merit(&env, "merit-1").await?;
+    assert_eq!(merit["stamps"].as_array().unwrap().len(), 0);
+    assert_eq!(merit["locked"], true, "lock still holds after issuer revoke");
+    // A stranger who is neither DAO nor the stamp issuer cannot revoke.
+    stamp(&env, &env.owner, "merit-1", "welding", 2).await?;
+    let bad = env
+        .bob
+        .call(cid, "revoke_stamp")
+        .args_json(json!({ "token_id": "merit-1", "skill": "welding" }))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "stranger revoke must fail");
+    assert!(failures_contain(&bad, "neither the Merit DAO nor the stamp issuer"));
+    // Revoking a stamp that is not there fails.
+    let bad = env
+        .dao
+        .call(cid, "revoke_stamp")
+        .args_json(json!({ "token_id": "merit-1", "skill": "no-such-skill" }))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "revoking a missing stamp must fail");
+    assert!(failures_contain(&bad, "stamp not found"));
+    Ok(())
+}
+
+/// Migrate: the pre-audit wasm state (token + job) survives the
+/// upgrade to the new code, with the registry seeded.
+fn old_merit_wasm() -> Vec<u8> {
+    load_wasm("contract/tests/merit-old.wasm")
+}
+
+#[tokio::test]
+async fn migrate_preserves_tokens_and_jobs() -> anyhow::Result<()> {
+    let worker = near_workspaces::sandbox().await?;
+    let contract = worker.dev_deploy(&old_merit_wasm()).await?;
+    let owner = worker.dev_create_account().await?;
+    let alice = worker.dev_create_account().await?;
+    let bob = worker.dev_create_account().await?;
+    let dao = worker.dev_create_account().await?;
+    let cid = contract.id();
+    owner
+        .call(cid, "new")
+        .args_json(json!({ "owner_id": owner.id(), "dao_id": dao.id() }))
+        .transact()
+        .await?
+        .into_result()?;
+    owner
+        .call(cid, "deploy_wallet_global")
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    // Live v1 state: a stamped Merit and an open job (old API).
+    alice
+        .call(cid, "nft_mint")
+        .args_json(json!({
+            "token_id": "merit-1",
+            "receiver_id": alice.id(),
+            "metadata": { "title": "Merit merit-1" },
+        }))
+        .deposit(NearToken::from_yoctonear(N / 10))
+        .gas(MINT_GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    owner
+        .call(cid, "stamp")
+        .args_json(json!({ "token_id": "merit-1", "skill": "welding", "level": 1 }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    bob.call(cid, "create_job")
+        .args_json(json!({
+            "job_id": "weld-1",
+            "title": "Job weld-1",
+            "description": "Test job",
+            "required_stamps": [{ "skill": "welding", "min_level": 1 }],
+            "completion_stamp": { "skill": "gate-welding", "level": 1 },
+            "criteria": CRITERIA,
+            "timeout_ns": null,
+            "arbiter": null,
+        }))
+        .deposit(NearToken::from_yoctonear(N))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    // Upgrade the code in place, then migrate as the owner.
+    contract
+        .as_account()
+        .deploy(&merit_wasm())
+        .await?
+        .into_result()?;
+    owner
+        .call(cid, "migrate")
+        .args_json(json!({}))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    // The token survives: stamp, level, lock all intact.
+    let merit: serde_json::Value = worker
+        .view(cid, "get_merit")
+        .args_json(json!({ "token_id": "merit-1" }))
+        .await?
+        .json()?;
+    assert_eq!(merit["level"], 1);
+    assert_eq!(merit["locked"], true);
+    assert_eq!(merit["stamps"][0]["skill"], "welding");
+    assert_eq!(merit["balance_withdrawable"], y(0));
+    assert_eq!(merit["balance_retained"], y(0));
+    // The job survives: open, same arbiter, new fields defaulted.
+    let job: serde_json::Value = worker
+        .view(cid, "get_job")
+        .args_json(json!({ "job_id": "weld-1" }))
+        .await?
+        .json()?;
+    assert_eq!(job["status"], "Open");
+    assert_eq!(job["arbiter"], dao.id().to_string());
+    assert_eq!(job["payment"], y(N));
+    assert_eq!(job["poster_evidence_ref"], serde_json::Value::Null);
+    assert_eq!(job["worker_evidence_ref"], serde_json::Value::Null);
+    assert_eq!(job["refund_pending"], false);
+    // The registry is seeded by the migration.
+    let skills: Vec<String> = worker
+        .view(cid, "list_completion_skills")
+        .args_json(json!({}))
+        .await?
+        .json()?;
+    assert_eq!(skills.len(), 9);
+    assert!(skills.contains(&"gate-welding".to_string()));
+    // New behaviour works on migrated state: the old job can still
+    // be cancelled by its poster, and a fresh mint works.
+    bob.call(cid, "cancel_job")
+        .args_json(json!({ "job_id": "weld-1" }))
+        .gas(GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    let job: serde_json::Value = worker
+        .view(cid, "get_job")
+        .args_json(json!({ "job_id": "weld-1" }))
+        .await?
+        .json()?;
+    assert_eq!(job["status"], "Cancelled");
+    alice
+        .call(cid, "nft_mint")
+        .args_json(json!({
+            "token_id": "merit-2",
+            "receiver_id": alice.id(),
+            "metadata": { "title": "Merit merit-2" },
+        }))
+        .deposit(NearToken::from_yoctonear(N / 10))
+        .gas(MINT_GAS)
+        .transact()
+        .await?
+        .into_result()?;
+    let merit2: serde_json::Value = worker
+        .view(cid, "get_merit")
+        .args_json(json!({ "token_id": "merit-2" }))
+        .await?
+        .json()?;
+    assert_eq!(merit2["locked"], false, "fresh Merit is unlocked");
+    // A second migrate fails closed.
+    let bad = owner
+        .call(cid, "migrate")
+        .args_json(json!({}))
+        .gas(GAS)
+        .transact()
+        .await?;
+    assert!(bad.is_failure(), "second migrate must fail");
     Ok(())
 }

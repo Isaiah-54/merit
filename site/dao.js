@@ -101,6 +101,74 @@ function buildVoteCall(id, action) {
   };
 }
 
+// Fetch the content an evidence reference points to, hash it
+// client-side, and compare it with the hash recorded onchain.
+// Returns { status, text } where status is match, mismatch, missing
+// or none. A fetch that fails is reported as missing, never as a
+// match: an unverifiable reference must not look verified.
+async function verifyEvidence(job, side) {
+  const isPoster = side === "poster";
+  const hash = isPoster ? job.poster_evidence : job.worker_evidence;
+  const ref = isPoster ? job.poster_evidence_ref : job.worker_evidence_ref;
+  if (!hash) return { status: "none", text: "No evidence hash onchain to compare against." };
+  if (!ref) return { status: "missing", text: "Missing: no evidence reference was posted, so there is nothing to fetch." };
+  if (!window.crypto || !crypto.subtle) return { status: "missing", text: "Missing: this browser cannot compute a hash to verify the content." };
+  let res;
+  try {
+    res = await fetch(evidenceRefUrl(ref));
+  } catch (_) {
+    return { status: "missing", text: "Missing: the referenced content could not be fetched." };
+  }
+  if (!res || !res.ok) return { status: "missing", text: "Missing: the referenced content could not be fetched." };
+  let bytes;
+  try {
+    bytes = await res.arrayBuffer();
+  } catch (_) {
+    return { status: "missing", text: "Missing: the referenced content could not be fetched." };
+  }
+  let digest;
+  try {
+    digest = await sha256Hex(bytes);
+  } catch (_) {
+    return { status: "missing", text: "Missing: the content hash could not be computed." };
+  }
+  if (digest === String(hash).toLowerCase()) return { status: "match", text: "Match: the fetched content hashes to the onchain hash." };
+  return { status: "mismatch", text: "Mismatch: the fetched content does not hash to the onchain hash." };
+}
+
+// The proposal freezes the evidence set: its description records the
+// evidence hashes as they stood when the proposal was made. If the
+// hash now onchain for a side is not among the hashes recorded in
+// the description, that side's evidence was swapped after the
+// proposal. No hashes recorded means nothing to compare, so no flag.
+function evidenceChangedFlags(job, description) {
+  const descHashes = (String(description || "").match(/[0-9a-fA-F]{64}/g) || []).map((h) => h.toLowerCase());
+  if (!descHashes.length || !job) return { poster: false, worker: false };
+  return {
+    poster: !!job.poster_evidence && descHashes.indexOf(String(job.poster_evidence).toLowerCase()) < 0,
+    worker: !!job.worker_evidence && descHashes.indexOf(String(job.worker_evidence).toLowerCase()) < 0,
+  };
+}
+
+// One evidence row: the onchain hash, the reference as a link when
+// one was posted, and a Verify control that fetches the content and
+// checks it against the hash.
+function evidenceRowHtml(label, hash, ref, jobId, side) {
+  let h = "<p>" + label + " evidence: ";
+  if (hash) {
+    h += "<span class=\"hash\">" + escapeHtml(hash) + "</span>";
+    if (ref) {
+      h += " <a href=\"" + escapeHtml(evidenceRefUrl(ref)) + "\" target=\"_blank\" rel=\"noopener\">View evidence</a>";
+    } else {
+      h += " <span class=\"muted small\">No reference posted, so the content cannot be fetched.</span>";
+    }
+    h += " <button type=\"button\" class=\"btn secondary verifyEvidenceBtn\" data-job-id=\"" + escapeHtml(jobId || "") + "\" data-side=\"" + side + "\">Verify</button> <span class=\"evidenceVerifyMsg muted small\" aria-live=\"polite\"></span>";
+  } else {
+    h += "None submitted";
+  }
+  return h + "</p>";
+}
+
 async function loadProposals() {
   const list = el("proposalList");
   try {
@@ -142,6 +210,9 @@ function renderProposals() {
     const criteria = job && job.criteria ? job.criteria : null;
     const posterEvidence = job ? job.poster_evidence : null;
     const workerEvidence = job ? job.worker_evidence : null;
+    const posterRef = job ? job.poster_evidence_ref : null;
+    const workerRef = job ? job.worker_evidence_ref : null;
+    const changed = job ? evidenceChangedFlags(job, p.description) : { poster: false, worker: false };
     const status = p.status || "InProgress";
     const votes = proposalVotes(p);
     const isResolve = call && call.methodName === "resolve_dispute";
@@ -157,8 +228,10 @@ function renderProposals() {
     }
     if (criteria) html += "<p>Acceptance criteria: " + escapeHtml(criteria) + "</p>";
     else if (jobId) html += "<p>Acceptance criteria: Not shown onchain for this job.</p>";
-    html += "<p>Poster evidence: <span class=\"hash\">" + escapeHtml(posterEvidence || "None submitted") + "</span></p>";
-    html += "<p>Worker evidence: <span class=\"hash\">" + escapeHtml(workerEvidence || "None submitted") + "</span></p>";
+    html += evidenceRowHtml("Poster", posterEvidence, posterRef, jobId, "poster");
+    html += evidenceRowHtml("Worker", workerEvidence, workerRef, jobId, "worker");
+    if (changed.poster) html += "<p class=\"evidence-flag\">Poster evidence changed after this proposal was made: the hash onchain no longer matches the hash recorded in the proposal.</p>";
+    if (changed.worker) html += "<p class=\"evidence-flag\">Worker evidence changed after this proposal was made: the hash onchain no longer matches the hash recorded in the proposal.</p>";
     html += "<p>Approvals: <strong>" + escapeHtml(String(votes.approveCount)) + " of " + escapeHtml(String(threshold)) + "</strong></p>";
     if (votes.approve.length) html += "<p class=\"muted small\">Approved by " + votes.approve.map(escapeHtml).join(", ") + "</p>";
     if (votes.reject.length) html += "<p class=\"muted small\">Rejected by " + votes.reject.map(escapeHtml).join(", ") + "</p>";
@@ -205,6 +278,23 @@ function renderProposals() {
     if (approveBtn) approveBtn.addEventListener("click", () => vote("VoteApprove", approveBtn));
     const rejectBtn = card.querySelector(".voteReject");
     if (rejectBtn) rejectBtn.addEventListener("click", () => vote("VoteReject", rejectBtn));
+    card.querySelectorAll(".verifyEvidenceBtn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const jobId = btn.getAttribute("data-job-id");
+        const side = btn.getAttribute("data-side");
+        const job = daoJobs[jobId];
+        const msgEl = btn.parentElement ? btn.parentElement.querySelector(".evidenceVerifyMsg") : null;
+        if (!job) { if (msgEl) msgEl.textContent = "Missing: the job record could not be read."; return; }
+        if (msgEl) msgEl.textContent = "Fetching the referenced content…";
+        btn.disabled = true;
+        try {
+          const r = await verifyEvidence(job, side);
+          if (msgEl) msgEl.textContent = r.text;
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
   });
 }
 

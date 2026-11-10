@@ -1,0 +1,128 @@
+{
+  "network": "testnet",
+  "contract_id": "merit-nft.testnet",
+  "merit_wasm_bytes": 539762,
+  "merit_wasm_sha256": "3b6a2baa1309ae7eebf697609eca6ad077b5678af93ac3792c2742a9d7e41314",
+  "redeployed_at": "2026-11-10T12:34:02Z",
+  "deploy_tx": "8JyZd3JhPmZZgbJwnDgqQAka8LhpBV1X76J7rZRHbvGg",
+  "migrate_tx": "BRDnkBTgHJmfzAmG9j6nuNuv37ah7tdAYkCMzrNbNq6q",
+  "owner": "merit-nft.testnet",
+  "dao": "merit-dao.testnet",
+  "completion_skills": [
+    "welding",
+    "torch-work",
+    "gate-welding",
+    "repair-welding",
+    "merit-basics",
+    "coding",
+    "design",
+    "writing",
+    "data-entry"
+  ],
+  "kit_price": "100000000000000000000000",
+  "state_preserved": true,
+  "note": "First run hit an RPC 429 from rpc.testnet.near.org after sending mint_kit tx 23Kr6U6t5YLJQ2sY3ZR1PyGYoV1T5PJuPBWoCzr8yFsx; that tx did NOT land (kit missing on resume). Resumed via https://rpc.testnet.fastnear.com; mint_kit re-sent as GcTndLTXVJUcWRUouK2vivy7NBq5AA7VqCPBSRjCTTvo.",
+  "smoke": {
+    "unregistered_skill_rejected": {
+      "label": "unregistered completion skill",
+      "ok": true,
+      "error": "completion_stamp skill is not registered"
+    },
+    "cancel_job": {
+      "create_tx": "BijijzszaegwZBr511JKS47az39CvnqRRLcjhBwehcqD",
+      "cancel_tx": "BysZDvFwGbinGn8Dz1xhMnvHbezdqQmhMxUUiSqXKm2y",
+      "status": "Cancelled"
+    },
+    "mint_overpay_rejected": {
+      "label": "mint overpayment 0.11 NEAR",
+      "ok": true,
+      "error": "nft_mint requires exactly 0.1 NEAR attached"
+    },
+    "mint_underpay_rejected": {
+      "label": "mint underpayment 0.09 NEAR",
+      "ok": true,
+      "error": "nft_mint requires exactly 0.1 NEAR attached"
+    },
+    "registered_skill_accepted": {
+      "job_tx": "9mmDocFir2ME7j2QQ1F1pFWcaYUTsSRGYVDrfbKTV188"
+    },
+    "buy_kit": {
+      "mint_tx": "EJemTRs6sRHWH7X5cNwsKJiVKyCVPWWkqX9wz4i8mJze",
+      "stamp_tx": "8nERvYrCUHpaQyDFeXLyrKW5MuS4akUaXYRuD9kNYeAX",
+      "job_tx": "9mmDocFir2ME7j2QQ1F1pFWcaYUTsSRGYVDrfbKTV188",
+      "accept_tx": "HtGuQBbbUsfTV9Jy9jMJUgSS9ZUW4xc5tmLZQTVkSX48",
+      "complete_tx": "AqeQuQXx6RJxx15bkFvzQcigTTP9HBepfRcLWpreeqGZ",
+      "mint_kit_tx": "GcTndLTXVJUcWRUouK2vivy7NBq5AA7VqCPBSRjCTTvo",
+      "buy_kit_tx": "8uC2w9wtgt4A3NFqt5NWG2QwXmzQcuLhKwnPTLJiXh6D",
+      "retained_after": "0",
+      "withdrawable_after": "1900000000000000000000000",
+      "kit": [
+        "audit-torch"
+      ],
+      "kit_owner": "merit-worker.testnet",
+      "mint_kit_first_attempt_dropped": "23Kr6U6t5YLJQ2sY3ZR1PyGYoV1T5PJuPBWoCzr8yFsx"
+    }
+  },
+  "merit2_after": {
+    "level": 8,
+    "balance_withdrawable": "2375000000000000000000000",
+    "balance_retained": "225000000000000000000000",
+    "kit": [
+      "welding-torch"
+    ]
+  },
+  "jobs_after": [
+    {
+      "job_id": "smoke-weld-1",
+      "status": "Completed"
+    },
+    {
+      "job_id": "demo-refusal",
+      "status": "Open"
+    },
+    {
+      "job_id": "demo-weld-gate",
+      "status": "Completed"
+    },
+    {
+      "job_id": "demo-lend-gate",
+      "status": "Completed"
+    },
+    {
+      "job_id": "demo-lend-expired",
+      "status": "Open"
+    },
+    {
+      "job_id": "demo-timeout-gate",
+      "status": "Completed"
+    },
+    {
+      "job_id": "demo-dispute-gate",
+      "status": "Completed"
+    },
+    {
+      "job_id": "online-landing-page",
+      "status": "Open"
+    },
+    {
+      "job_id": "online-logo-design",
+      "status": "Open"
+    },
+    {
+      "job_id": "online-product-copy",
+      "status": "Open"
+    },
+    {
+      "job_id": "online-data-cleanup",
+      "status": "Open"
+    },
+    {
+      "job_id": "audit-cancel-1",
+      "status": "Cancelled"
+    },
+    {
+      "job_id": "audit-smoke-job",
+      "status": "Completed"
+    }
+  ]
+}

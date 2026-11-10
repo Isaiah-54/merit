@@ -13,6 +13,7 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import { createHash } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 const require = createRequire("/tmp/og-test/package.json");
 const puppeteer = require("puppeteer-core");
@@ -69,12 +70,22 @@ const MERIT3 = {
   kit: [],
   lend: null,
 };
-const POSTER_EVIDENCE = "11".repeat(32);
-const WORKER_EVIDENCE = "22".repeat(32);
+const sha = (s) => createHash("sha256").update(s, "utf8").digest("hex");
+// The poster content hashes to the onchain hash, so Verify reports a
+// match. The worker content does not, so Verify reports a mismatch.
+// The worker hash recorded in the proposal description is stale, so
+// the page must also flag the evidence as changed after the proposal.
+const POSTER_CONTENT = "Poster evidence for paintfence: the fence was painted in one coat only.";
+const WORKER_CONTENT = "Worker evidence for paintfence: two coats, no drips.";
+const POSTER_EVIDENCE = sha(POSTER_CONTENT);
+const WORKER_EVIDENCE = sha("different bytes that were never submitted");
+const WORKER_STALE_HASH = "33".repeat(32);
+const dataRef = (s) => "data:text/plain;base64," + Buffer.from(s, "utf8").toString("base64");
 const JOBS = [
   { job_id: "weldgate", title: "Weld the gate", description: "Weld the front gate shut.", required_stamps: [{ skill: "welding", min_level: 2 }], payment: "5000000000000000000000000", status: "Open", arbiter: "merit-dao.testnet", completion_stamp: { skill: "welding", level: 1 }, criteria: "Weld the gate shut with continuous beads and no gaps.", poster: "alice.testnet", poster_evidence: null, worker_evidence: null },
-  { job_id: "paintfence", title: "Paint the fence", description: "Paint the long fence.", required_stamps: [{ skill: "painting", min_level: 3 }], payment: "1000000000000000000000000", status: "Disputed", arbiter: "merit-dao.testnet", completion_stamp: { skill: "painting", level: 3 }, criteria: "Paint the long fence in two coats with no drips.", poster: "carol.testnet", poster_evidence: POSTER_EVIDENCE, worker_evidence: WORKER_EVIDENCE, dao_proposal_id: 0 },
+  { job_id: "paintfence", title: "Paint the fence", description: "Paint the long fence.", required_stamps: [{ skill: "painting", min_level: 3 }], payment: "1000000000000000000000000", status: "Disputed", arbiter: "merit-dao.testnet", completion_stamp: { skill: "painting", level: 3 }, criteria: "Paint the long fence in two coats with no drips.", poster: "carol.testnet", poster_evidence: POSTER_EVIDENCE, worker_evidence: WORKER_EVIDENCE, poster_evidence_ref: dataRef(POSTER_CONTENT), worker_evidence_ref: dataRef(WORKER_CONTENT), dao_proposal_id: 0 },
   { job_id: "buildlanding", title: "Build a landing page", description: "Build a one page site for the farm.", required_stamps: [{ skill: "merit-basics", min_level: 1 }], payment: "500000000000000000000000", status: "Open", arbiter: "merit-dao.testnet", completion_stamp: { skill: "coding", level: 1 }, criteria: "One page, loads fast, works on a phone.", poster: "alice.testnet", poster_evidence: null, worker_evidence: null },
+  { job_id: "oldjob", title: "Old job", description: "A job nobody took.", required_stamps: [], payment: "1000000000000000000000000", status: "Cancelled", arbiter: "merit-dao.testnet", completion_stamp: { skill: "coding", level: 1 }, criteria: "Do the old work.", poster: "alice.testnet", poster_evidence: null, worker_evidence: null },
 ];
 
 // Merit DAO (Sputnik v2) canned state: council of 3, threshold 2.
@@ -91,7 +102,7 @@ function b64(obj) { return Buffer.from(JSON.stringify(obj), "utf8").toString("ba
 const DAO_PROPOSALS = [
   {
     id: 0, proposer: "alice.testnet",
-    description: "Dispute for job paintfence. Proposed outcome refund. The fence was painted in one coat only.",
+    description: "Dispute for job paintfence. Proposed outcome refund. Poster evidence hash " + POSTER_EVIDENCE + ". Worker evidence hash " + WORKER_STALE_HASH + ". The fence was painted in one coat only.",
     kind: { FunctionCall: { receiver_id: "merit-nft.testnet", actions: [{ method_name: "resolve_dispute", args: b64({ job_id: "paintfence", outcome: "refund", partial_amount: null }), gas: "100000000000000", deposit: "0" }] } },
     status: "InProgress", vote_counts: { council: [1, 0, 0] }, votes: { "james54.testnet": "Approve" }, submission_time: "1760000000000000000",
   },
@@ -107,6 +118,9 @@ function rpcResult(value) {
   const bytes = Array.from(Buffer.from(JSON.stringify(value), "utf8"));
   return { jsonrpc: "2.0", id: "x", result: { result: bytes } };
 }
+// Every view call the site makes, in order, so the verifier can
+// check that list calls pass explicit pagination.
+const rpcCalls = [];
 function handleRpc(body) {
   let parsed = {};
   try { parsed = JSON.parse(body || "{}"); } catch (_) { /* fall through */ }
@@ -115,6 +129,7 @@ function handleRpc(body) {
   const accountId = params.account_id || "";
   let args = {};
   try { args = JSON.parse(Buffer.from(params.args_base64 || "", "base64").toString("utf8")); } catch (_) { /* fall through */ }
+  rpcCalls.push({ method: method, args: args });
   if (EMPTY_MODE && ["nft_tokens", "list_jobs", "get_proposals"].includes(method)) return rpcResult([]);
   if (accountId === "merit-dao.testnet") {
     if (method === "get_policy") return rpcResult(DAO_POLICY);
@@ -136,6 +151,7 @@ function handleRpc(body) {
     throw new Error("token does not exist");
   }
   if (method === "get_kit") return rpcResult({ kit_token_id: args.kit_token_id, name: "Welding Hammer" });
+  if (method === "kit_price") return rpcResult("100000000000000000000000"); // 0.1 NEAR
   if (method === "list_jobs") return rpcResult(JOBS);
   if (method === "get_job") return rpcResult(JOBS.find((j) => j.job_id === args.job_id) || null);
   if (method === "can_access") {
@@ -188,9 +204,12 @@ async function main() {
     // Console errors from the wallet bundle's manifest fetch are sandbox
     // noise: the bundle fetches a wallet list from GitHub/jsdelivr and
     // the sandbox has no live internet. They are not site errors.
+    // The 127.0.0.1:9 fetch is the deliberate missing-evidence probe
+    // in the DAO section: it must fail, and Chromium logs the failed
+    // load. That log is the probe working, not a site error.
     page.on("console", (m) => {
       const loc = (m.location() && m.location().url) || '';
-      if (m.type() === "error" && !/manifest\.json|raw\.githubusercontent|cdn\.jsdelivr|ERR_TUNNEL_CONNECTION_FAILED/.test(m.text() + ' ' + loc)) {
+      if (m.type() === "error" && !/manifest\.json|raw\.githubusercontent|cdn\.jsdelivr|ERR_TUNNEL_CONNECTION_FAILED|127\.0\.0\.1:9/.test(m.text() + ' ' + loc)) {
         errors.push("console: " + m.text());
       }
     });
@@ -261,7 +280,7 @@ async function main() {
     check("index mint button links to mint page", await page.$eval("a.btn[href='mint.html']", (a) => a.textContent.includes("Mint a Merit")));
     const journeyLabels = await page.$$eval(".journey-step .journey-label", (els) => els.map((e) => e.textContent.trim()));
     check("index journey strip shows all six steps",
-      journeyLabels.length === 6 && ["Mint", "Pass the test", "Earn a stamp", "Take a job", "Get paid", "Withdraw"].every((s) => journeyLabels.includes(s)),
+      journeyLabels.length === 6 && ["Mint", "Pass the demo test", "Earn a stamp", "Take a job", "Get paid", "Withdraw"].every((s) => journeyLabels.includes(s)),
       journeyLabels.join(" | "));
 
     // Mint form builds the right call (wallet stubbed, no real wallet).
@@ -307,9 +326,9 @@ async function main() {
     t = await text();
     check("mint page shows new Merit card with open link",
       t.includes("Your new Merit") && t.includes("merit10") && t.includes("Open your new Merit"));
-    check("mint page shows Pass the test as the next step",
-      t.includes("Pass the test") && t.includes("What is next") &&
-      (await page.$eval("a.btn[href^='merit.html?id=merit10']", (a) => a.textContent.includes("Pass the test"))));
+    check("mint page shows Pass the demo test as the next step",
+      t.includes("Pass the demo test") && t.includes("What is next") &&
+      (await page.$eval("a.btn[href^='merit.html?id=merit10']", (a) => a.textContent.includes("Pass the demo test"))));
 
     // ---------- Merit detail ----------
     await page.goto(BASE + "/merit.html?id=merit-1", { waitUntil: "networkidle0" });
@@ -349,6 +368,33 @@ async function main() {
       wdTx.actions[0].args.amount === "1000000000000000000000000",
       wdTx ? JSON.stringify(wdTx.actions[0]) : "no call captured");
 
+    // Buy kit with retained: the owner sees the section with the
+    // retained balance and the fixed 0.1 NEAR price, and the call
+    // spends from retained with no deposit attached.
+    let buyVisible = await page.$eval("#buyKitSection", (el) => el.style.display !== "none");
+    let buyText = await page.$eval("#buyKitSection", (el) => el.textContent);
+    check("buy kit section shows retained balance and kit price for the owner",
+      buyVisible && buyText.includes("0.500") && buyText.includes("0.100"),
+      "visible=" + buyVisible + " text=" + buyText.slice(0, 120));
+    await setWalletStub("alice.testnet");
+    await page.type("#buyKitId", "hammer2");
+    await page.click("#buyKitBtn");
+    await sleep(800);
+    const kitTx = await page.evaluate(() => window.__captured[0]);
+    check("buy kit builds buy_kit call with the kit id and no deposit",
+      kitTx && kitTx.actions[0].methodName === "buy_kit" &&
+      kitTx.actions[0].args.token_id === "merit-1" &&
+      kitTx.actions[0].args.kit_token_id === "hammer2" &&
+      kitTx.actions[0].deposit === "0",
+      kitTx ? JSON.stringify(kitTx.actions[0]) : "no call captured");
+    const buyKitStatusText = await page.$eval("#buyKitStatus", (el) => el.textContent);
+    check("buy kit status shows below the Buy button", buyKitStatusText.includes("Sent"), buyKitStatusText);
+    // A non-owner never sees the section.
+    await page.evaluate(() => { window.__meritTest.setWallet("bob.testnet"); });
+    await sleep(900);
+    buyVisible = await page.$eval("#buyKitSection", (el) => el.style.display !== "none");
+    check("buy kit section hidden from a non-owner", !buyVisible);
+
     // Pass a test builds the right call, with real gas, and the
     // status lands below the Submit button, not at the top. This
     // guards the bug where the status element id was passed as the
@@ -376,7 +422,9 @@ async function main() {
     const pickerText = await page.$eval("#meritPicker", (el) => el.textContent);
     check("detail switcher lists merit-1 and merit-2", pickerText.includes("merit-1") && pickerText.includes("merit-2"));
     check("detail default merit-2 is blank", t.includes("No stamps yet"));
-    check("detail next step for a blank Merit is pass the test", t.toLowerCase().includes("next step: earn your first stamp") && t.includes("Pass the test to earn your first stamp"));
+    check("detail next step for a blank Merit is pass the demo test", t.toLowerCase().includes("next step: earn your first stamp") && t.includes("Pass the demo test to earn your first stamp"));
+    check("demo test is labelled demo only, not a high trust credential",
+      t.includes("Demo only") && t.includes("demo stamp") && t.includes("does not prove skill"));
 
     // ---------- Jobs hub ----------
     await page.goto(BASE + "/jobs.html", { waitUntil: "networkidle0" });
@@ -418,7 +466,7 @@ async function main() {
     check("offers search clear restores all", lt.includes("weld the gate") && lt.includes("build a landing page"));
 
     // Gate check: merit-1 passes weldgate, merit-2 is refused.
-    const firstCard = (await page.$$(".card"))[0];
+    let firstCard = (await page.$$(".card"))[0];
     await firstCard.$eval(".acceptMerit", (el) => { el.value = "merit-1"; });
     await firstCard.$eval(".checkBtn", (b) => b.click());
     await sleep(600);
@@ -446,6 +494,73 @@ async function main() {
     const sentCount = await page.evaluate(() => window.__captured.length);
     check("accept refusal sends no transaction", sentCount === 0 && msg.includes("Refused"), "sent=" + sentCount + " msg=" + msg);
 
+    // Pagination: every list_jobs call the board made passed explicit
+    // from_index and limit, never an unbounded read.
+    check("list_jobs calls pass explicit pagination",
+      rpcCalls.filter((c) => c.method === "list_jobs").length > 0 &&
+      rpcCalls.filter((c) => c.method === "list_jobs").every((c) => c.args.from_index === 0 && c.args.limit === 50),
+      JSON.stringify(rpcCalls.filter((c) => c.method === "list_jobs")));
+    // A cancelled job renders as Cancelled, not as open or taken.
+    t = await text();
+    check("cancelled job renders as Cancelled", t.includes("oldjob") && t.includes("Cancelled"));
+
+    // Cancel: a non-poster sees no Cancel button on an open job.
+    await page.evaluate(() => { window.__meritTest.setWallet("carol.testnet"); });
+    await sleep(600);
+    let cancelBtns = await page.$$eval(".cancelBtn", (els) => els.length);
+    check("cancel button hidden from a non-poster", cancelBtns === 0, "buttons=" + cancelBtns);
+    // The poster sees the Cancel button, and it builds cancel_job
+    // with the job id and no deposit. The result shows in the card's
+    // own message line, not at the top of the page.
+    await setWalletStub("alice.testnet");
+    await sleep(600);
+    firstCard = (await page.$$(".card"))[0];
+    cancelBtns = await page.$$eval(".cancelBtn", (els) => els.length);
+    check("cancel button shown to the poster", cancelBtns >= 1, "buttons=" + cancelBtns);
+    await firstCard.$eval(".cancelBtn", (b) => b.click());
+    await sleep(600);
+    const cancelTx = await page.evaluate(() => window.__captured[0]);
+    check("cancel builds cancel_job call with the job id and no deposit",
+      cancelTx && cancelTx.actions[0].methodName === "cancel_job" &&
+      cancelTx.actions[0].args.job_id === "weldgate" &&
+      cancelTx.actions[0].deposit === "0",
+      cancelTx ? JSON.stringify(cancelTx.actions[0]) : "no call captured");
+    msg = await firstCard.$eval(".jobMsg", (el) => el.textContent);
+    check("cancel result shows below the Cancel button", msg.includes("Job cancelled"), msg);
+    await sleep(1600);
+    firstCard = (await page.$$(".card"))[0];
+
+    // Submit evidence: the disputed job card posts the hash plus the
+    // reference, and posts a null reference when none is given.
+    let disputeCard = await page.$('[data-job-id="paintfence"]');
+    await disputeCard.$eval(".evidenceHash", (el, h) => { el.value = h; }, POSTER_EVIDENCE);
+    await disputeCard.$eval(".evidenceRef", (el) => { el.value = "https://example.com/evidence.txt"; });
+    await page.evaluate(() => { window.__captured = []; });
+    await disputeCard.$eval(".submitEvidenceBtn", (b) => b.click());
+    await sleep(600);
+    const evTx = await page.evaluate(() => window.__captured[0]);
+    check("submit evidence builds submit_evidence call with hash and ref",
+      evTx && evTx.actions[0].methodName === "submit_evidence" &&
+      evTx.actions[0].args.job_id === "paintfence" &&
+      evTx.actions[0].args.evidence_hash === POSTER_EVIDENCE &&
+      evTx.actions[0].args.evidence_ref === "https://example.com/evidence.txt" &&
+      evTx.actions[0].deposit === "0",
+      evTx ? JSON.stringify(evTx.actions[0]) : "no call captured");
+    await sleep(1600);
+    disputeCard = await page.$('[data-job-id="paintfence"]');
+    await disputeCard.$eval(".evidenceHash", (el, h) => { el.value = h; }, POSTER_EVIDENCE);
+    await disputeCard.$eval(".evidenceRef", (el) => { el.value = ""; });
+    await page.evaluate(() => { window.__captured = []; });
+    await disputeCard.$eval(".submitEvidenceBtn", (b) => b.click());
+    await sleep(600);
+    const evTx2 = await page.evaluate(() => window.__captured[0]);
+    check("submit evidence sends a null reference when none is given",
+      evTx2 && evTx2.actions[0].methodName === "submit_evidence" &&
+      evTx2.actions[0].args.evidence_ref === null,
+      evTx2 ? JSON.stringify(evTx2.actions[0]) : "no call captured");
+    await sleep(1600);
+    firstCard = (await page.$$(".card"))[0];
+
     // Accept with a stamped Merit but the chain refuses: friendly text, not a raw panic.
     await page.evaluate(() => {
       window.__captured = [];
@@ -463,14 +578,36 @@ async function main() {
     await sleep(600);
     t = await text();
     check("create page has the posting form", await page.$("#createJobForm") !== null && await page.$("#createJobBtn") !== null);
+    check("create completion skill offers exactly the nine registry skills",
+      JSON.stringify(await page.$$eval("#jobCompletionSkill option", (els) => els.map((o) => o.value))) ===
+      JSON.stringify(["welding", "torch-work", "gate-welding", "repair-welding", "merit-basics", "coding", "design", "writing", "data-entry"]),
+      (await page.$$eval("#jobCompletionSkill option", (els) => els.map((o) => o.value))).join(","));
     await setWalletStub("alice.testnet");
     await page.type("#jobId", "weldgate2");
     await page.type("#jobTitle", "Weld the second gate");
     await page.type("#jobDesc", "More welding.");
     await page.type("#jobStamps", "welding 2");
-    await page.type("#jobCompletionSkill", "welding");
+    await page.$eval("#jobCompletionSkill", (el) => { el.value = "welding"; });
     await page.type("#jobCriteria", "Weld it clean and strong.");
     await page.type("#jobPayment", "5");
+    // Bounds: a description over 2000 chars is refused, no transaction.
+    await page.$eval("#jobDesc", (el) => { el.value = "x".repeat(2001); });
+    await page.click("#createJobBtn");
+    await sleep(500);
+    let boundCount = await page.evaluate(() => window.__captured.length);
+    let boundStatus = await page.$eval("#pageStatus", (el) => el.textContent);
+    check("create job refuses a description over 2000 chars with no transaction",
+      boundCount === 0 && boundStatus.includes("2000"), "sent=" + boundCount + " status=" + boundStatus);
+    // Bounds: more than 10 required stamps is refused, no transaction.
+    await page.$eval("#jobDesc", (el) => { el.value = "More welding."; });
+    await page.$eval("#jobStamps", (el) => { el.value = Array.from({ length: 11 }, (_, i) => "skill" + i + " 1").join("\n"); });
+    await page.click("#createJobBtn");
+    await sleep(500);
+    boundCount = await page.evaluate(() => window.__captured.length);
+    boundStatus = await page.$eval("#pageStatus", (el) => el.textContent);
+    check("create job refuses more than 10 required stamps with no transaction",
+      boundCount === 0 && boundStatus.includes("10"), "sent=" + boundCount + " status=" + boundStatus);
+    await page.$eval("#jobStamps", (el) => { el.value = "welding 2"; });
     await page.click("#createJobBtn");
     await sleep(500);
     const jobTx = await page.evaluate(() => window.__captured[0]);
@@ -484,6 +621,9 @@ async function main() {
       jobTx.actions[0].args.criteria === "Weld it clean and strong." &&
       jobTx.actions[0].deposit === "5000000000000000000000000",
       jobTx ? JSON.stringify(jobTx.actions[0]) : "no call captured");
+    check("create job sends no arbiter, the DAO always arbitrates",
+      jobTx && !("arbiter" in jobTx.actions[0].args),
+      jobTx ? JSON.stringify(jobTx.actions[0].args) : "no call captured");
 
     // ---------- Completed jobs ----------
     await page.goto(BASE + "/jobs-completed.html", { waitUntil: "networkidle0" });
@@ -500,6 +640,9 @@ async function main() {
       ["merit-basics", "welding", "torch-work", "gate-welding", "repair-welding"].every((s) => t.includes(s)));
     check("badges held section shows level explanations", t.includes("Level 1") && t.includes("Level 2"));
     check("badges earnable section lists coding from an open job", t.includes("coding") && lt.includes("build a landing page") && t.includes("Not held yet"));
+    check("badges list_jobs call passes explicit pagination",
+      rpcCalls.filter((c) => c.method === "list_jobs").length > 0 &&
+      rpcCalls.filter((c) => c.method === "list_jobs").every((c) => c.args.from_index === 0 && c.args.limit === 50));
     check("badges page nav and tab bar link all five pages",
       (await page.$$eval("header.top nav a", (els) => els.map((a) => a.getAttribute("href")))).length === 5 &&
       (await page.$$eval("#tabBar a", (els) => els.map((a) => a.getAttribute("href")))).length === 6);
@@ -512,6 +655,29 @@ async function main() {
     check("dao shows proposed outcome and criteria",
       t.includes("Refund the poster") && t.includes("Pay in full") && t.includes("two coats with no drips"));
     check("dao shows both sides evidence hashes", t.includes(POSTER_EVIDENCE) && t.includes(WORKER_EVIDENCE));
+    check("dao shows evidence references as links",
+      (await page.$$eval("a[href^='data:text/plain']", (els) => els.length)) >= 2);
+    // Verify: the poster content hashes to the onchain hash, the
+    // worker content does not, and the worker hash recorded in the
+    // proposal description is stale, so the swap flag must show.
+    const verifyBtns = await page.$$(".verifyEvidenceBtn");
+    check("dao verify buttons present for submitted evidence", verifyBtns.length >= 2, "buttons=" + verifyBtns.length);
+    await verifyBtns[0].click();
+    await sleep(800);
+    let verifyMsgs = await page.$$eval(".evidenceVerifyMsg", (els) => els.map((e) => e.textContent));
+    check("dao verify poster evidence matches", verifyMsgs[0].includes("Match"), verifyMsgs[0]);
+    await verifyBtns[1].click();
+    await sleep(800);
+    verifyMsgs = await page.$$eval(".evidenceVerifyMsg", (els) => els.map((e) => e.textContent));
+    check("dao verify worker evidence mismatches", verifyMsgs[1].includes("Mismatch"), verifyMsgs[1]);
+    check("dao flags evidence changed after the proposal",
+      t.includes("Worker evidence changed after this proposal was made") && !t.includes("Poster evidence changed after this proposal was made"));
+    const missing = await page.evaluate(async () => {
+      const r = await verifyEvidence({ poster_evidence: "00".repeat(32), poster_evidence_ref: "https://127.0.0.1:9/nothing" }, "poster");
+      return r;
+    });
+    check("dao verify missing content reports missing, not a match",
+      missing.status === "missing" && missing.text.includes("Missing"), JSON.stringify(missing));
     check("dao shows status and approvals",
       t.includes("INPROGRESS") && t.includes("APPROVED") && t.includes("1 of 2") && t.includes("2 of 2"));
     check("dao shows resolve_dispute call", t.includes("resolve_dispute"));

@@ -41,7 +41,7 @@
       <label for="jobStamps">Required stamp and level, one per line</label>
       <textarea id="jobStamps" rows="2" placeholder="welding 2"></textarea>
       <div class="two-col">
-        <div><label for="jobCompletionSkill">Completion stamp skill</label><input id="jobCompletionSkill" type="text" placeholder="welding" autocomplete="off"></div>
+        <div><label for="jobCompletionSkill">Completion stamp skill</label><select id="jobCompletionSkill"><option value="welding">welding</option><option value="torch-work">torch-work</option><option value="gate-welding">gate-welding</option><option value="repair-welding">repair-welding</option><option value="merit-basics">merit-basics</option><option value="coding">coding</option><option value="design">design</option><option value="writing">writing</option><option value="data-entry">data-entry</option></select><p class="muted small" style="margin:4px 0 0">Only a skill in the DAO registry can be promised as the completion stamp.</p></div>
         <div><label for="jobCompletionLevel">Completion stamp level (1 to 3)</label><input id="jobCompletionLevel" type="number" min="1" max="3" value="1"></div>
       </div>
       <label for="jobCriteria">Acceptance criteria</label>

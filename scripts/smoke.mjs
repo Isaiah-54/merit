@@ -91,6 +91,8 @@ const stampTx = await owner.functionCall({
 console.log('   stamp tx:', stampTx.transaction.hash);
 
 console.log('3. poster posts a 1 NEAR job ...');
+// No arbiter is passed: since the audit fix (M-02) create_job no
+// longer takes an arbiter parameter and the DAO always arbitrates.
 const jobTx = await poster.functionCall({
   contractId: CONTRACT_ID, methodName: 'create_job',
   args: {

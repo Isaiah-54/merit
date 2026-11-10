@@ -71,18 +71,19 @@
 //! Disputed) blocks both `complete_job` and `release_job` and blocks
 //! the payment and the stamp until resolved.
 //!
-//! DISPUTES — DAO PROPOSAL AND VOTE: each job names an arbiter
-//! at posting (default the contract's Merit DAO; the poster may
-//! name another trusted DAO). The arbiter is recorded on the job
-//! and ONLY that DAO contract may resolve a dispute on it —
-//! `resolve_dispute` checks the predecessor is the job's arbiter
-//! DAO and rejects any other caller, person or contract. Each job
-//! MUST post clear acceptance criteria at posting (`criteria`,
-//! required, non-empty) — the DAO council judges the evidence
-//! against these criteria, like a jury, not an automatic check.
-//! On dispute, both sides submit evidence hashes
-//! (`submit_evidence`); the evidence content itself stays
-//! offchain, only its SHA-256 hash is recorded onchain. The
+//! DISPUTES — DAO PROPOSAL AND VOTE: every job's arbiter is the
+//! contract's Merit DAO — no poster may name another arbiter.
+//! The arbiter is recorded on the job and ONLY that DAO contract
+//! may resolve a dispute on it — `resolve_dispute` checks the
+//! predecessor is the job's arbiter DAO and rejects any other
+//! caller, person or contract. Each job MUST post clear acceptance
+//! criteria at posting (`criteria`, required, non-empty) — the DAO
+//! council judges the evidence against these criteria, like a
+//! jury, not an automatic check. On dispute, both sides submit
+//! evidence hashes plus a content reference (`submit_evidence`)
+//! where the council can retrieve the evidence and check it
+//! against the hash; the evidence content itself stays offchain,
+//! only its SHA-256 hash and reference are recorded onchain. The
 //! dispute is judged through a DAO proposal: a proposal is created
 //! on the Merit DAO (a Sputnik v2 DAO) carrying the job id, the
 //! evidence, the criteria, and ONE proposed outcome — pay in full
@@ -118,14 +119,25 @@
 //! the contract account, issuer_name = "Job completion") on every
 //! success path: poster confirm, auto-release, arbiter pay-in-full.
 //! Never on refund or partial. Issuing it may lock the Merit if it
-//! is its first stamp, which is intended.
+//! is its first stamp, which is intended. The skill must be in the
+//! contract-maintained completion skill registry, governed by the
+//! DAO — a poster cannot invent a credential for a job to award.
+//! An Open job can be cancelled by its poster (`cancel_job`): the
+//! job is marked Cancelled before the exact escrow is refunded,
+//! and a failed refund stays retryable. A Merit may spend its
+//! retained 5% balance on kit tools (`buy_kit`, 0.1 NEAR per kit),
+//! paid from its own sub-account wallet to the kit seller.
 //!
 //! ISSUER WHITELIST: only whitelisted issuers may stamp. The
 //! contract holds a whitelist of issuer accounts with human-readable
 //! display names; each stamp stores the issuer account AND its
 //! display name. Seeded at init with the owner as "Merit DAO".
-//! `pass_test` stamps are system stamps: issuer = the contract
-//! account id, issuer_name = "Merit Test".
+//! The whitelist is governed by the DAO, not the owner. A stamp
+//! may be revoked by the DAO or by the issuer recorded on it
+//! (`revoke_stamp`); revoking the last stamp never unlocks the
+//! Merit, the lock stays once earned. `pass_test` stamps are
+//! system stamps: issuer = the contract account id, issuer_name
+//! = "Merit Test".
 //!
 //! TESTNET ONLY. Never deploy to mainnet.
 
@@ -141,6 +153,7 @@ use near_sdk::{
     env, ext_contract, near, AccountId, CryptoHash, Gas, NearToken, PanicOnDefault, Promise,
     PromiseResult,
 };
+use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
 use schemars::JsonSchema;
 
 /// 1 NEAR in yoctoNEAR.
@@ -173,6 +186,29 @@ pub const COMPLETION_ISSUER_NAME: &str = "Job completion";
 pub const OWNER_ISSUER_NAME: &str = "Merit DAO";
 /// Max length of a job's acceptance criteria, in characters.
 pub const MAX_CRITERIA_LEN: usize = 2000;
+/// Max length of a job description, in characters (same as criteria).
+pub const MAX_DESCRIPTION_LEN: usize = 2000;
+/// Max required stamps on one job.
+pub const MAX_REQUIRED_STAMPS: usize = 10;
+/// Max page size for paginated list views.
+pub const MAX_PAGE_SIZE: u64 = 50;
+/// Max length of an evidence content reference (a URI or CID).
+pub const MAX_EVIDENCE_REF_LEN: usize = 512;
+/// Price of one kit tool bought with retained balance: 0.1 NEAR.
+pub const KIT_PRICE: u128 = ONE_NEAR / 10;
+/// Skills that may be awarded as job completion stamps. Seeded at
+/// init and in migrate; only the DAO may add or remove entries.
+pub const SEEDED_COMPLETION_SKILLS: [&str; 9] = [
+    "welding",
+    "torch-work",
+    "gate-welding",
+    "repair-welding",
+    "merit-basics",
+    "coding",
+    "design",
+    "writing",
+    "data-entry",
+];
 
 /// Embedded wallet wasm, published once as a global contract and (as
 /// a fallback) deployed to each sub-account. Copied here by
@@ -223,6 +259,7 @@ pub enum JobStatus {
     Completed,
     Refunded,
     PartiallyPaid,
+    Cancelled,
 }
 
 #[near(serializers = [borsh, json])]
@@ -252,6 +289,16 @@ pub struct Job {
     pub poster_evidence: Option<String>,
     /// SHA-256 hex of the evidence the worker submitted, if any.
     pub worker_evidence: Option<String>,
+    /// Content reference for the poster evidence (a URI or CID),
+    /// if any. The hash above commits to the content it points at.
+    pub poster_evidence_ref: Option<String>,
+    /// Content reference for the worker evidence (a URI or CID),
+    /// if any.
+    pub worker_evidence_ref: Option<String>,
+    /// True while a cancel refund is still owed: cancel_job marked
+    /// the job Cancelled and the refund transfer failed, so the
+    /// poster may retry it with retry_cancel_refund.
+    pub refund_pending: bool,
     pub status: JobStatus,
     pub accepted_by: Option<TokenId>,
     /// Timeout for the accepted job, in nanoseconds.
@@ -297,6 +344,11 @@ pub struct MeritToken {
     /// Kit token ids currently held inside this Merit.
     pub kit: Vec<String>,
     pub lend: Option<LendInfo>,
+    /// True once the Merit has ever held a stamp. The lock stays
+    /// once earned: revoking the last stamp does not unlock the
+    /// Merit, so a credential can never be erased to free a Merit
+    /// for sale.
+    pub ever_stamped: bool,
 }
 
 // ---- View shapes (JSON) ----
@@ -350,6 +402,9 @@ pub struct JobView {
     pub arbiter: AccountId,
     pub poster_evidence: Option<String>,
     pub worker_evidence: Option<String>,
+    pub poster_evidence_ref: Option<String>,
+    pub worker_evidence_ref: Option<String>,
+    pub refund_pending: bool,
     pub status: JobStatus,
     pub accepted_by: Option<TokenId>,
     pub timeout_ns: U64,
@@ -442,6 +497,18 @@ pub fn job_deadline(accepted_at: u64, timeout_ns: u64) -> u64 {
         .expect("job deadline overflow")
 }
 
+/// Paginate a list view: returns the [start, end) index range in
+/// u64 space, with the page size capped at MAX_PAGE_SIZE and
+/// saturating arithmetic, so huge from_index or limit values can
+/// never trap or wrap.
+pub fn paginate(total: u64, from_index: Option<U64>, limit: Option<u64>) -> (u64, u64) {
+    let from = from_index.map(|i| i.0).unwrap_or(0);
+    let limit = limit.unwrap_or(MAX_PAGE_SIZE).min(MAX_PAGE_SIZE);
+    let start = from.min(total);
+    let end = from.saturating_add(limit).min(total);
+    (start, end)
+}
+
 fn to_hex(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut s = String::with_capacity(bytes.len() * 2);
@@ -488,6 +555,8 @@ pub trait ExtSelf {
         minter: AccountId,
     );
     fn on_withdraw(&mut self, token_id: TokenId, amount: U128);
+    fn on_cancel_refund(&mut self, job_id: String);
+    fn on_buy_kit(&mut self, token_id: TokenId, kit_token_id: String, seller: AccountId);
 }
 
 #[near(contract_state)]
@@ -501,6 +570,9 @@ pub struct Merit {
     /// Whitelisted issuers: account -> display name.
     issuers: LookupMap<AccountId, String>,
     issuer_ids: Vector<AccountId>,
+    /// v2 prefixes (b"T" / b"J"): migrate moved tokens and jobs
+    /// here from the v1 prefixes (b"t" / b"j"), whose entries are
+    /// orphaned storage. Never reuse the v1 prefixes.
     tokens: LookupMap<TokenId, MeritToken>,
     token_ids: Vector<TokenId>,
     jobs: LookupMap<String, Job>,
@@ -515,6 +587,9 @@ pub struct Merit {
     /// Fallback: mint deploys the wallet wasm per sub-account
     /// instead of referencing the global contract.
     use_embedded_wallet: bool,
+    /// Skills that may be awarded as job completion stamps.
+    /// Governed by the DAO; seeded at init and in migrate.
+    completion_skills: Vector<String>,
 }
 
 #[near]
@@ -527,20 +602,120 @@ impl Merit {
         // Seed the whitelist with the owner as "Merit DAO".
         issuers.insert(owner_id.clone(), OWNER_ISSUER_NAME.to_string());
         issuer_ids.push(owner_id.clone());
+        let mut completion_skills = Vector::new(b"s");
+        for skill in SEEDED_COMPLETION_SKILLS {
+            completion_skills.push(skill.to_string());
+        }
         Self {
             owner: owner_id,
             dao_id,
             issuers,
             issuer_ids,
-            tokens: LookupMap::new(b"t"),
+            tokens: LookupMap::new(b"T"),
             token_ids: Vector::new(b"v"),
-            jobs: LookupMap::new(b"j"),
+            jobs: LookupMap::new(b"J"),
             job_ids: Vector::new(b"w"),
             kits: LookupMap::new(b"k"),
             test_answer_hash: env::sha256(TEST_ANSWER.as_bytes()),
             wallet_code_hash: None,
             wallet_deployed: false,
             use_embedded_wallet: false,
+            completion_skills,
+        }
+    }
+
+    /// One-shot migration from the pre-audit state shape to this
+    /// one. Deploy the new WASM over the old contract, then call
+    /// this once as the owner. It reads the old state, converts
+    /// every job (evidence refs default to None, no cancel refund
+    /// pending) and every token (ever_stamped is true exactly when
+    /// the token already holds a stamp, so locked Merits stay
+    /// locked), seeds the completion skill registry, and writes
+    /// the new state. A second call fails: the migration marker is
+    /// set, and the old shape can no longer be read from new state.
+    #[init(ignore_state)]
+    pub fn migrate() -> Self {
+        if env::storage_read(b"merit:migrated_v2").is_some() {
+            env::panic_str("already migrated");
+        }
+        let old: OldMerit = env::state_read().expect("old contract state not found");
+        assert_eq!(
+            env::predecessor_account_id(),
+            old.owner,
+            "only the contract owner may migrate"
+        );
+        let job_ids: Vec<String> = old.job_ids.iter().cloned().collect();
+        // Fresh prefix (b"J"): inserting into the old prefix would
+        // read each old job back as the new Job shape and panic.
+        // The old entries stay as unreachable orphaned storage.
+        let mut jobs = LookupMap::new(b"J");
+        for id in &job_ids {
+            if let Some(oj) = old.jobs.get(id) {
+                jobs.insert(
+                    id.clone(),
+                    Job {
+                        job_id: oj.job_id.clone(),
+                        title: oj.title.clone(),
+                        description: oj.description.clone(),
+                        payment: oj.payment,
+                        required_stamps: oj.required_stamps.clone(),
+                        completion_stamp: oj.completion_stamp.clone(),
+                        criteria: oj.criteria.clone(),
+                        poster: oj.poster.clone(),
+                        arbiter: oj.arbiter.clone(),
+                        poster_evidence: oj.poster_evidence.clone(),
+                        worker_evidence: oj.worker_evidence.clone(),
+                        poster_evidence_ref: None,
+                        worker_evidence_ref: None,
+                        refund_pending: false,
+                        status: oj.status.clone(),
+                        accepted_by: oj.accepted_by.clone(),
+                        timeout_ns: oj.timeout_ns,
+                        accepted_at: oj.accepted_at,
+                    },
+                );
+            }
+        }
+        let token_ids: Vec<TokenId> = old.token_ids.iter().cloned().collect();
+        // Fresh prefix (b"T"), same reason as the jobs map above.
+        let mut tokens = LookupMap::new(b"T");
+        for id in &token_ids {
+            if let Some(ot) = old.tokens.get(id) {
+                tokens.insert(
+                    id.clone(),
+                    MeritToken {
+                        owner_id: ot.owner_id.clone(),
+                        metadata: ot.metadata.clone(),
+                        stamps: ot.stamps.clone(),
+                        withdrawable: ot.withdrawable,
+                        retained: ot.retained,
+                        kit: ot.kit.clone(),
+                        lend: ot.lend.clone(),
+                        ever_stamped: !ot.stamps.is_empty(),
+                    },
+                );
+            }
+        }
+        let mut completion_skills = Vector::new(b"s");
+        for skill in SEEDED_COMPLETION_SKILLS {
+            completion_skills.push(skill.to_string());
+        }
+        env::storage_write(b"merit:migrated_v2", b"1");
+        Self {
+            owner: old.owner,
+            dao_id: old.dao_id,
+            issuers: old.issuers,
+            issuer_ids: old.issuer_ids,
+            tokens,
+            token_ids: old.token_ids,
+            jobs,
+            job_ids: old.job_ids,
+            kits: old.kits,
+            test_answer_hash: old.test_answer_hash,
+            wallet_code_hash: old.wallet_code_hash,
+            wallet_deployed: old.wallet_deployed,
+            use_embedded_wallet: old.use_embedded_wallet,
+            completion_skills,
         }
     }
 
@@ -579,6 +754,18 @@ impl Merit {
             self.owner,
             "caller is not the contract owner"
         );
+    }
+
+    fn require_dao(&self) {
+        assert_eq!(
+            env::predecessor_account_id(),
+            self.dao_id,
+            "caller is not the Merit DAO"
+        );
+    }
+
+    fn is_completion_skill(&self, skill: &str) -> bool {
+        self.completion_skills.iter().any(|s| s == skill)
     }
 
     fn require_issuer(&self) {
@@ -646,7 +833,7 @@ impl Merit {
                 .collect(),
             balance_withdrawable: U128(token.withdrawable),
             balance_retained: U128(token.retained),
-            locked: !token.stamps.is_empty(),
+            locked: token.ever_stamped,
             kit: token.kit.clone(),
             lend: token.lend.as_ref().map(|l| LendView {
                 to: l.to.clone(),
@@ -668,6 +855,9 @@ impl Merit {
             arbiter: job.arbiter.clone(),
             poster_evidence: job.poster_evidence.clone(),
             worker_evidence: job.worker_evidence.clone(),
+            poster_evidence_ref: job.poster_evidence_ref.clone(),
+            worker_evidence_ref: job.worker_evidence_ref.clone(),
+            refund_pending: job.refund_pending,
             status: job.status.clone(),
             accepted_by: job.accepted_by.clone(),
             timeout_ns: U64(job.timeout_ns),
@@ -724,6 +914,10 @@ impl Merit {
             existing.issuer_name = COMPLETION_ISSUER_NAME.to_string();
             existing.stamped_at = now;
         } else {
+            assert!(
+                token.stamps.len() < MAX_STAMPS,
+                "too many distinct stamps on this Merit"
+            );
             token.stamps.push(Stamp {
                 skill: stamp.skill.clone(),
                 level: stamp.level,
@@ -732,6 +926,7 @@ impl Merit {
                 stamped_at: now,
             });
         }
+        token.ever_stamped = true;
         self.tokens.insert(token_id.to_string(), token);
     }
 
@@ -747,10 +942,9 @@ impl Merit {
     }
 
     pub fn nft_tokens(&self, from_index: Option<U64>, limit: Option<u64>) -> Vec<Token> {
-        let from = from_index.map(|i| i.0 as usize).unwrap_or(0);
-        let limit = limit.unwrap_or(50) as usize;
-        let total = self.token_ids.len() as usize;
-        (from..total.min(from + limit))
+        let total = self.token_ids.len() as u64;
+        let (start, end) = paginate(total, from_index, limit);
+        (start..end)
             .filter_map(|i| {
                 let id = self.token_ids.get(i as u32)?;
                 let t = self.tokens.get(id.as_str())?;
@@ -791,10 +985,12 @@ impl Merit {
         self.issuers.contains_key(&account_id)
     }
 
-    pub fn list_issuers(&self) -> Vec<IssuerView> {
-        (0..self.issuer_ids.len())
+    pub fn list_issuers(&self, from_index: Option<U64>, limit: Option<u64>) -> Vec<IssuerView> {
+        let total = self.issuer_ids.len() as u64;
+        let (start, end) = paginate(total, from_index, limit);
+        (start..end)
             .filter_map(|i| {
-                let id = self.issuer_ids.get(i)?;
+                let id = self.issuer_ids.get(i as u32)?;
                 let name = self.issuers.get(id)?;
                 Some(IssuerView {
                     account_id: id.clone(),
@@ -840,13 +1036,25 @@ impl Merit {
         Self::job_view(&self.job(&job_id))
     }
 
-    pub fn list_jobs(&self) -> Vec<JobView> {
-        (0..self.job_ids.len())
+    pub fn list_jobs(&self, from_index: Option<U64>, limit: Option<u64>) -> Vec<JobView> {
+        let total = self.job_ids.len() as u64;
+        let (start, end) = paginate(total, from_index, limit);
+        (start..end)
             .filter_map(|i| {
-                let id = self.job_ids.get(i)?;
+                let id = self.job_ids.get(i as u32)?;
                 self.jobs.get(id.as_str()).map(|j| Self::job_view(j))
             })
             .collect()
+    }
+
+    /// The skills that may be awarded as job completion stamps.
+    pub fn list_completion_skills(&self) -> Vec<String> {
+        self.completion_skills.iter().cloned().collect()
+    }
+
+    /// The price of one kit tool bought with retained balance.
+    pub fn kit_price(&self) -> U128 {
+        U128(KIT_PRICE)
     }
 
     pub fn get_kit(&self, kit_token_id: String) -> KitView {
@@ -925,9 +1133,10 @@ impl Merit {
         metadata: Option<TokenMetadata>,
     ) -> Promise {
         validate_token_id(&token_id);
-        assert!(
-            env::attached_deposit().as_yoctonear() >= MINT_PRICE,
-            "nft_mint requires 0.1 NEAR attached"
+        assert_eq!(
+            env::attached_deposit().as_yoctonear(),
+            MINT_PRICE,
+            "nft_mint requires exactly 0.1 NEAR attached"
         );
         assert!(!self.tokens.contains_key(&token_id), "token already exists");
         let sub: AccountId = subaccount_id(&token_id, &env::current_account_id())
@@ -986,6 +1195,7 @@ impl Merit {
                     retained: 0,
                     kit: Vec::new(),
                     lend: None,
+                    ever_stamped: false,
                 };
                 self.tokens.insert(token_id.clone(), token);
                 self.token_ids.push(token_id.clone());
@@ -1028,7 +1238,7 @@ impl Merit {
         );
         let mut token = self.token(&token_id);
         assert!(
-            token.stamps.is_empty(),
+            !token.ever_stamped,
             "locked Merit cannot be transferred: it carries earned credentials"
         );
         assert_eq!(
@@ -1083,6 +1293,7 @@ impl Merit {
                 stamped_at: now,
             });
         }
+        token.ever_stamped = true;
         self.tokens.insert(token_id, token);
     }
 
@@ -1104,6 +1315,10 @@ impl Merit {
             self.test_answer_hash,
             "wrong answer"
         );
+        assert!(
+            token.stamps.len() < MAX_STAMPS,
+            "too many distinct stamps on this Merit"
+        );
         token.stamps.push(Stamp {
             skill: TEST_SKILL.to_string(),
             level: 1,
@@ -1111,6 +1326,7 @@ impl Merit {
             issuer_name: TEST_ISSUER_NAME.to_string(),
             stamped_at: env::block_timestamp(),
         });
+        token.ever_stamped = true;
         self.tokens.insert(token_id, token);
     }
 
@@ -1119,12 +1335,15 @@ impl Merit {
     /// Post a job, escrowing its payment: the payment IS the attached
     /// deposit (in full). Anyone may post. Minimum 0.001 NEAR so a
     /// job is worth doing. `timeout_ns` is optional; when omitted the
-    /// job uses the 7-day default. `arbiter` is optional — a DAO
-    /// account id; when omitted the job's arbiter is the contract's
-    /// Merit DAO (`dao_id`). `completion_stamp` is the credential the worker earns on
-    /// success. `criteria` is REQUIRED (non-empty): the acceptance
+    /// job uses the 7-day default. The dispute arbiter is ALWAYS the
+    /// contract's Merit DAO (`dao_id`): no caller may name another
+    /// arbiter. `completion_stamp` is the credential the worker earns
+    /// on success, and its skill must be in the completion skill
+    /// registry (governed by the DAO) — a poster cannot invent a
+    /// credential. `criteria` is REQUIRED (non-empty): the acceptance
     /// criteria the work is judged against — the arbiter can only
-    /// judge against what is written.
+    /// judge against what is written. Description is capped at 2000
+    /// characters and required_stamps at 10 entries.
     #[payable]
     pub fn create_job(
         &mut self,
@@ -1135,13 +1354,20 @@ impl Merit {
         completion_stamp: CompletionStamp,
         criteria: String,
         timeout_ns: Option<U64>,
-        arbiter: Option<AccountId>,
     ) {
         let payment = env::attached_deposit().as_yoctonear();
         assert!(payment >= ONE_NEAR / 1000, "job payment must be at least 0.001 NEAR");
         assert!(!job_id.is_empty() && job_id.len() <= 64, "job_id must be 1-64 characters");
         assert!(!self.jobs.contains_key(&job_id), "job already exists");
         assert!(!title.is_empty() && title.len() <= 128, "title must be 1-128 characters");
+        assert!(
+            description.len() <= MAX_DESCRIPTION_LEN,
+            "description must be at most 2000 characters"
+        );
+        assert!(
+            required_stamps.len() <= MAX_REQUIRED_STAMPS,
+            "required_stamps must have at most 10 entries"
+        );
         assert!(
             !criteria.is_empty() && criteria.len() <= MAX_CRITERIA_LEN,
             "criteria must be 1-2000 characters"
@@ -1158,6 +1384,10 @@ impl Merit {
             (1..=3).contains(&completion_stamp.level),
             "completion_stamp level must be 1-3"
         );
+        assert!(
+            self.is_completion_skill(&completion_stamp.skill),
+            "completion_stamp skill is not registered"
+        );
         let timeout_ns = timeout_ns.map(|t| t.0).unwrap_or(DEFAULT_TIMEOUT_NS);
         assert!(timeout_ns > 0, "timeout_ns must be positive");
         self.jobs.insert(
@@ -1171,9 +1401,12 @@ impl Merit {
                 completion_stamp,
                 criteria,
                 poster: env::predecessor_account_id(),
-                arbiter: arbiter.unwrap_or_else(|| self.dao_id.clone()),
+                arbiter: self.dao_id.clone(),
                 poster_evidence: None,
                 worker_evidence: None,
+                poster_evidence_ref: None,
+                worker_evidence_ref: None,
+                refund_pending: false,
                 status: JobStatus::Open,
                 accepted_by: None,
                 timeout_ns,
@@ -1181,6 +1414,101 @@ impl Merit {
             },
         );
         self.job_ids.push(job_id);
+    }
+
+    /// Cancel an Open job and refund the exact escrow to the poster.
+    /// Poster-only, only while the job is Open: never after
+    /// acceptance or while disputed. The job is marked Cancelled
+    /// BEFORE the refund transfer is issued, so the escrow can
+    /// never be refunded twice; if the transfer fails, the private
+    /// callback leaves refund_pending set and the poster may retry
+    /// with retry_cancel_refund.
+    pub fn cancel_job(&mut self, job_id: String) -> Promise {
+        let mut job = self.job(&job_id);
+        assert_eq!(
+            env::predecessor_account_id(),
+            job.poster,
+            "only the poster may cancel the job"
+        );
+        assert_eq!(job.status, JobStatus::Open, "only an open job can be cancelled");
+        let payment = job.payment;
+        let poster = job.poster.clone();
+        job.status = JobStatus::Cancelled;
+        job.refund_pending = true;
+        self.jobs.insert(job_id.clone(), job);
+        Promise::new(poster)
+            .transfer(NearToken::from_yoctonear(payment))
+            .then(
+                ext_self::ext(env::current_account_id())
+                    .with_static_gas(CALLBACK_GAS)
+                    .on_cancel_refund(job_id),
+            )
+    }
+
+    /// Retry a failed cancel refund. Poster-only, only while the
+    /// job is Cancelled with a refund still pending. A successful
+    /// refund clears the pending flag; a second failure leaves it
+    /// pending for another retry, without double payment.
+    pub fn retry_cancel_refund(&mut self, job_id: String) -> Promise {
+        let job = self.job(&job_id);
+        assert_eq!(
+            env::predecessor_account_id(),
+            job.poster,
+            "only the poster may retry the cancel refund"
+        );
+        assert_eq!(job.status, JobStatus::Cancelled, "job is not cancelled");
+        assert!(job.refund_pending, "no cancel refund is pending");
+        let payment = job.payment;
+        let poster = job.poster.clone();
+        Promise::new(poster)
+            .transfer(NearToken::from_yoctonear(payment))
+            .then(
+                ext_self::ext(env::current_account_id())
+                    .with_static_gas(CALLBACK_GAS)
+                    .on_cancel_refund(job_id),
+            )
+    }
+
+    /// Callback for cancel_job / retry_cancel_refund. On success
+    /// the refund is settled and the pending flag clears; on
+    /// failure the flag stays set so the poster can retry.
+    #[private]
+    pub fn on_cancel_refund(&mut self, job_id: String) {
+        assert_eq!(env::promise_results_count(), 1, "expected one promise result");
+        if matches!(env::promise_result(0), PromiseResult::Successful(_)) {
+            let mut job = self.job(&job_id);
+            job.refund_pending = false;
+            self.jobs.insert(job_id, job);
+        } else {
+            env::log_str("cancel refund failed; refund remains pending for retry");
+        }
+    }
+
+    /// Add a skill to the completion stamp registry. DAO-only: the
+    /// registry is what stops a poster inventing a credential, so
+    /// only the DAO may extend it.
+    pub fn add_completion_skill(&mut self, skill: String) {
+        self.require_dao();
+        assert!(!skill.is_empty() && skill.len() <= 64, "skill must be 1-64 characters");
+        assert!(!self.is_completion_skill(&skill), "skill is already registered");
+        self.completion_skills.push(skill);
+    }
+
+    /// Remove a skill from the completion stamp registry. DAO-only.
+    /// Jobs already posted keep their recorded completion stamp.
+    pub fn remove_completion_skill(&mut self, skill: String) {
+        self.require_dao();
+        assert!(self.is_completion_skill(&skill), "skill is not registered");
+        let kept: Vec<String> = self
+            .completion_skills
+            .iter()
+            .filter(|s| *s != &skill)
+            .cloned()
+            .collect();
+        self.completion_skills.clear();
+        for s in kept {
+            self.completion_skills.push(s);
+        }
     }
 
     /// Take an open job with a Merit. Caller must hold the Merit (or
@@ -1284,20 +1612,36 @@ impl Merit {
     }
 
     /// Submit evidence for an open dispute: the SHA-256 hex of the
-    /// evidence bytes (the work product, photos, text). Callable by
-    /// the poster or the worker while the job is Disputed. The
-    /// evidence itself stays offchain — only its hash is recorded,
-    /// so the arbiter judges the exact evidence each side submitted.
-    /// A side may re-submit (the latest hash counts).
-    pub fn submit_evidence(&mut self, job_id: String, evidence_hash: String) {
+    /// evidence bytes (the work product, photos, text), plus an
+    /// optional content reference (a URI or CID) where the council
+    /// can retrieve the evidence and check it against the hash.
+    /// Callable by the poster or the worker while the job is
+    /// Disputed. The evidence itself stays offchain — only its hash
+    /// and reference are recorded, so the arbiter judges the exact
+    /// evidence each side submitted. A side may re-submit (the
+    /// latest hash and reference count).
+    pub fn submit_evidence(
+        &mut self,
+        job_id: String,
+        evidence_hash: String,
+        evidence_ref: Option<String>,
+    ) {
         validate_evidence_hash(&evidence_hash);
+        if let Some(ref r) = evidence_ref {
+            assert!(
+                !r.is_empty() && r.len() <= MAX_EVIDENCE_REF_LEN,
+                "evidence_ref must be 1-512 characters"
+            );
+        }
         let mut job = self.job(&job_id);
         assert_eq!(job.status, JobStatus::Disputed, "job is not disputed");
         let caller = env::predecessor_account_id();
         if caller == job.poster {
             job.poster_evidence = Some(evidence_hash);
+            job.poster_evidence_ref = evidence_ref;
         } else if self.is_worker(&job, &caller) {
             job.worker_evidence = Some(evidence_hash);
+            job.worker_evidence_ref = evidence_ref;
         } else {
             env::panic_str("only the poster or the worker may submit evidence");
         }
@@ -1514,6 +1858,70 @@ impl Merit {
         self.tokens.insert(token_id, token);
     }
 
+    /// Buy a kit tool with the Merit's retained balance.
+    /// Holder-only. The kit must exist and not already be inside a
+    /// Merit, and the Merit's retained balance must cover KIT_PRICE
+    /// (0.1 NEAR). The retained balance is debited before the
+    /// payout, and the kit moves to the holder inside this Merit;
+    /// the seller is paid KIT_PRICE from the Merit's own sub-account
+    /// wallet. Withdrawable funds can never be spent through this
+    /// path. If the wallet payout fails, the private callback
+    /// restores the retained balance and returns the kit to the
+    /// seller, so neither funds nor kit are lost.
+    pub fn buy_kit(&mut self, token_id: TokenId, kit_token_id: String) -> Promise {
+        let mut token = self.token(&token_id);
+        self.require_holder(&token);
+        let mut kit = self
+            .kits
+            .get(&kit_token_id)
+            .cloned()
+            .unwrap_or_else(|| env::panic_str(&format!("kit not found: {}", kit_token_id)));
+        assert!(kit.inside_merit.is_none(), "kit is already inside a Merit");
+        let seller = kit.owner_id.clone();
+        assert_ne!(seller, token.owner_id, "caller already owns this kit token");
+        assert!(
+            token.retained >= KIT_PRICE,
+            "retained balance is below the kit price"
+        );
+        token.retained -= KIT_PRICE;
+        kit.owner_id = token.owner_id.clone();
+        kit.inside_merit = Some(token_id.clone());
+        self.kits.insert(kit_token_id.clone(), kit);
+        token.kit.push(kit_token_id.clone());
+        self.tokens.insert(token_id.clone(), token);
+        let sub: AccountId = subaccount_id(&token_id, &env::current_account_id())
+            .parse()
+            .unwrap_or_else(|_| env::panic_str("token sub-account id invalid"));
+        ext_wallet::ext(sub)
+            .with_static_gas(PAYOUT_GAS)
+            .payout(seller.clone(), U128(KIT_PRICE))
+            .then(
+                ext_self::ext(env::current_account_id())
+                    .with_static_gas(CALLBACK_GAS)
+                    .on_buy_kit(token_id, kit_token_id, seller),
+            )
+    }
+
+    /// Callback for buy_kit. On success nothing more is needed.
+    /// On failure the retained debit is restored and the kit
+    /// returns to the seller outside any Merit.
+    #[private]
+    pub fn on_buy_kit(&mut self, token_id: TokenId, kit_token_id: String, seller: AccountId) {
+        assert_eq!(env::promise_results_count(), 1, "expected one promise result");
+        if matches!(env::promise_result(0), PromiseResult::Failed) {
+            env::log_str("kit payout failed; restoring retained balance and returning the kit");
+            let mut token = self.token(&token_id);
+            token.retained += KIT_PRICE;
+            token.kit.retain(|k| k != &kit_token_id);
+            self.tokens.insert(token_id, token);
+            if let Some(mut kit) = self.kits.get(&kit_token_id).cloned() {
+                kit.owner_id = seller;
+                kit.inside_merit = None;
+                self.kits.insert(kit_token_id, kit);
+            }
+        }
+    }
+
     // ---- Lend ----
 
     /// Delegate access to `to` until `expires_at` (nanosecond
@@ -1546,9 +1954,9 @@ impl Merit {
     // ---- Issuers / owner ----
 
     /// Add an issuer to the whitelist with a display name.
-    /// Owner-only.
+    /// DAO-only: issuer control is governance, not an owner switch.
     pub fn add_issuer(&mut self, account_id: AccountId, name: String) {
-        self.require_owner();
+        self.require_dao();
         assert!(!name.is_empty() && name.len() <= 64, "name must be 1-64 characters");
         if !self.issuers.contains_key(&account_id) {
             self.issuer_ids.push(account_id.clone());
@@ -1556,13 +1964,36 @@ impl Merit {
         self.issuers.insert(account_id, name);
     }
 
-    /// Remove an issuer from the whitelist. Owner-only. The owner
-    /// can be removed (they can always add themselves back).
+    /// Remove an issuer from the whitelist. DAO-only. The owner
+    /// can be removed (the DAO can always add them back).
     pub fn remove_issuer(&mut self, account_id: AccountId) {
-        self.require_owner();
+        self.require_dao();
         self.issuers.remove(&account_id);
         // Note: issuer_ids keeps the id; list_issuers skips ids with
         // no whitelist entry, so removal is visible immediately.
+    }
+
+    /// Revoke a stamp from a Merit. Callable by the Merit DAO or
+    /// by the issuer recorded on that stamp (a removed issuer may
+    /// still revoke a stamp they issued). Removing a stamp never
+    /// unlocks the Merit: once a Merit has earned a stamp it stays
+    /// locked, so a credential cannot be erased to free a Merit
+    /// for sale.
+    pub fn revoke_stamp(&mut self, token_id: TokenId, skill: String) {
+        let mut token = self.token(&token_id);
+        let pos = token
+            .stamps
+            .iter()
+            .position(|s| s.skill == skill)
+            .unwrap_or_else(|| env::panic_str("stamp not found"));
+        let issuer = token.stamps[pos].issuer.clone();
+        let caller = env::predecessor_account_id();
+        assert!(
+            caller == self.dao_id || caller == issuer,
+            "caller is neither the Merit DAO nor the stamp issuer"
+        );
+        token.stamps.remove(pos);
+        self.tokens.insert(token_id, token);
     }
 
     /// Change the Merit DAO account (the default arbiter for new
@@ -1573,6 +2004,58 @@ impl Merit {
         self.dao_id = dao_id;
     }
 
+}
+
+/// Pre-audit contract state, exactly as deployed (v1). Only
+/// used by migrate() to read the old state blob and convert it.
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct OldMerit {
+    pub owner: AccountId,
+    pub dao_id: AccountId,
+    pub issuers: LookupMap<AccountId, String>,
+    pub issuer_ids: Vector<AccountId>,
+    pub tokens: LookupMap<TokenId, OldMeritToken>,
+    pub token_ids: Vector<TokenId>,
+    pub jobs: LookupMap<String, OldJob>,
+    pub job_ids: Vector<String>,
+    pub kits: LookupMap<String, KitToken>,
+    pub test_answer_hash: Vec<u8>,
+    pub wallet_code_hash: Option<Vec<u8>>,
+    pub wallet_deployed: bool,
+    pub use_embedded_wallet: bool,
+}
+
+/// Pre-audit token state: as MeritToken but without ever_stamped.
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct OldMeritToken {
+    pub owner_id: AccountId,
+    pub metadata: Option<TokenMetadata>,
+    pub stamps: Vec<Stamp>,
+    pub withdrawable: u128,
+    pub retained: u128,
+    pub kit: Vec<String>,
+    pub lend: Option<LendInfo>,
+}
+
+/// Pre-audit job state: as Job but without the evidence refs and
+/// without refund_pending.
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct OldJob {
+    pub job_id: String,
+    pub title: String,
+    pub description: String,
+    pub payment: u128,
+    pub required_stamps: Vec<RequiredStamp>,
+    pub completion_stamp: CompletionStamp,
+    pub criteria: String,
+    pub poster: AccountId,
+    pub arbiter: AccountId,
+    pub poster_evidence: Option<String>,
+    pub worker_evidence: Option<String>,
+    pub status: JobStatus,
+    pub accepted_by: Option<TokenId>,
+    pub timeout_ns: u64,
+    pub accepted_at: Option<u64>,
 }
 
 #[cfg(test)]
@@ -1697,6 +2180,29 @@ mod tests {
     #[should_panic(expected = "evidence_hash must be a 64-character")]
     fn evidence_hash_rejects_uppercase() {
         validate_evidence_hash(&"A".repeat(64));
+    }
+
+    #[test]
+    fn pagination_caps_page_size_and_never_traps() {
+        assert_eq!(paginate(100, None, None), (0, 50));
+        assert_eq!(paginate(100, Some(U64(90)), Some(50)), (90, 100));
+        assert_eq!(paginate(3, Some(U64(2)), Some(100)), (2, 3));
+        assert_eq!(paginate(3, Some(U64(u64::MAX)), Some(u64::MAX)), (3, 3));
+        assert_eq!(paginate(0, None, None), (0, 0));
+        assert_eq!(paginate(10, Some(U64(10)), Some(5)), (10, 10));
+    }
+
+    #[test]
+    fn kit_price_is_a_tenth_near() {
+        assert_eq!(KIT_PRICE, ONE_NEAR / 10);
+    }
+
+    #[test]
+    fn seeded_completion_skills_are_nine() {
+        assert_eq!(SEEDED_COMPLETION_SKILLS.len(), 9);
+        for skill in ["welding", "torch-work", "gate-welding", "repair-welding", "merit-basics", "coding", "design", "writing", "data-entry"] {
+            assert!(SEEDED_COMPLETION_SKILLS.contains(&skill), "seed is missing {}", skill);
+        }
     }
 
 

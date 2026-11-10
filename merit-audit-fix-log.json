@@ -1,0 +1,191 @@
+{
+  "network": "testnet",
+  "contract_id": "merit-nft.testnet",
+  "ran_at": "2026-11-10T12:44:58.201Z",
+  "steps": {
+    "cancel_jobs": {
+      "demo-refusal": {
+        "cancel_tx": "FhRsy6hhsvaWRYx9jDadVQmP4DQQ1vMnCE7CSp9V6AxP",
+        "payment_yocto": "10000000000000000000000",
+        "status": "Cancelled",
+        "refund_pending": false
+      },
+      "demo-lend-expired": {
+        "cancel_tx": "BAjRDa9sZQS7iZmGzBUjE3zfbHBHLtCJpiK1sNkVS8XR",
+        "payment_yocto": "10000000000000000000000",
+        "status": "Cancelled",
+        "refund_pending": false
+      },
+      "poster_balance_before_yocto": "3393031459705226500000000",
+      "poster_balance_after_yocto": "3393031459705226500000000",
+      "poster_net_delta_yocto": "0",
+      "note": "This log was written by the resumed run: the two cancels had already landed in the first run (a stale get_kit read crashed it after the cancels), so the balances above were both read after the refunds and the delta is 0. The refunds are proven by the onchain state itself: both jobs read Cancelled with refund_pending false, which the contract only sets after the refund callback succeeds. Each refund was exactly 0.01 NEAR, the full escrow."
+    },
+    "buy_kit": {
+      "kit_token_id": "demo-hammer",
+      "kit_name": "Demo Hammer",
+      "kit_price_yocto": "100000000000000000000000",
+      "mint_kit_tx": "DFeNWKHj2skmCg9rHEf5VXKvWDXB2c2ziLDqYJu1FMkj",
+      "buy_kit_tx": "EQ3zHqtmPCxqDjHrHqyCbeNR9JenVMyhTSkfghW3zHu",
+      "seller": "merit-poster.testnet",
+      "retained_before_yocto": "225000000000000000000000",
+      "retained_after_yocto": "125000000000000000000000",
+      "withdrawable_before_yocto": "2375000000000000000000000",
+      "withdrawable_after_yocto": "2375000000000000000000000",
+      "kit_after": [
+        "welding-torch",
+        "demo-hammer"
+      ],
+      "sub_before_yocto": "2650000000000000000000000",
+      "sub_after_yocto": "2550000000000000000000000",
+      "seller_before_yocto": "3393031459705226500000000",
+      "seller_after_yocto": "3493031459705226500000000"
+    },
+    "evidence_ref": {
+      "job_id": "audit-evidence-ref",
+      "create_tx": "Bond2mzp1vkCEzHmtiVAtE26yXVZK8haVrvhuohQBz64",
+      "accept_tx": "4BhGvo2MHFR5eHx42h1EyEK8HR6WYRrnHcfp4UGAshTe",
+      "dispute_tx": "7y4Y2GwxWkSiZZSZms8SfCrT999P2QNcibfpJTQ2EwcG",
+      "poster_evidence_tx": "GAzhYNTmcypSTrkiuACcKcqYTZpiVuhJYFB6idG6FL27",
+      "worker_evidence_tx": "DY1Ko6rSUanX1gXyoteYFRGHJgSiYZ339XRF5jpNJUdT",
+      "poster_evidence_hash": "5023fbeb2404e75d440136e59e061db8acafbde210de75c7f67cefd6d8a04097",
+      "worker_evidence_hash": "6c34b35162dcc2e436b3e95042388217b08519c2beaddc60727f1ee6fe542cac",
+      "poster_evidence_ref": "data:text/plain;base64,YXVkaXQgZXZpZGVuY2U6IHBvc3RlciBwaG90byBvZiB0aGUgZmluaXNoZWQgd29yaw==",
+      "worker_evidence_ref": "data:text/plain;base64,YXVkaXQgZXZpZGVuY2U6IHdvcmtlciBwaG90byBvZiB0aGUgZmluaXNoZWQgd29yaw==",
+      "status": "Disputed",
+      "note": "Test job left Disputed on purpose: submit_evidence requires a Disputed job. Its 0.01 NEAR escrow stays locked until a DAO refund proposal resolves it; no proposal was created here."
+    },
+    "registry_check": {
+      "note": "Registry gating was already proven by the contract agent smoke test (unregistered skill rejected, registered accepted); not repeated here.",
+      "completion_skills": [
+        "welding",
+        "torch-work",
+        "gate-welding",
+        "repair-welding",
+        "merit-basics",
+        "coding",
+        "design",
+        "writing",
+        "data-entry"
+      ]
+    }
+  },
+  "final": {
+    "merit_2": {
+      "level": 8,
+      "balance_withdrawable_yocto": "2375000000000000000000000",
+      "balance_retained_yocto": "125000000000000000000000",
+      "kit": [
+        "welding-torch",
+        "demo-hammer"
+      ],
+      "stamps": [
+        {
+          "skill": "merit-basics",
+          "level": 1,
+          "issuer": "merit-nft.testnet",
+          "issuer_name": "Merit Test",
+          "stamped_at": "1794292186354892223"
+        },
+        {
+          "skill": "welding",
+          "level": 3,
+          "issuer": "merit-nft.testnet",
+          "issuer_name": "Job completion",
+          "stamped_at": "1794292308872401974"
+        },
+        {
+          "skill": "torch-work",
+          "level": 1,
+          "issuer": "merit-nft.testnet",
+          "issuer_name": "Job completion",
+          "stamped_at": "1794292550615097649"
+        },
+        {
+          "skill": "gate-welding",
+          "level": 1,
+          "issuer": "merit-nft.testnet",
+          "issuer_name": "Job completion",
+          "stamped_at": "1794293046445585234"
+        },
+        {
+          "skill": "repair-welding",
+          "level": 2,
+          "issuer": "merit-nft.testnet",
+          "issuer_name": "Job completion",
+          "stamped_at": "1794294569236672958"
+        }
+      ]
+    },
+    "sub_balance_yocto": "2550000000000000000000000",
+    "jobs": [
+      {
+        "job_id": "smoke-weld-1",
+        "status": "Completed"
+      },
+      {
+        "job_id": "demo-refusal",
+        "status": "Cancelled"
+      },
+      {
+        "job_id": "demo-weld-gate",
+        "status": "Completed"
+      },
+      {
+        "job_id": "demo-lend-gate",
+        "status": "Completed"
+      },
+      {
+        "job_id": "demo-lend-expired",
+        "status": "Cancelled"
+      },
+      {
+        "job_id": "demo-timeout-gate",
+        "status": "Completed"
+      },
+      {
+        "job_id": "demo-dispute-gate",
+        "status": "Completed"
+      },
+      {
+        "job_id": "online-landing-page",
+        "status": "Open"
+      },
+      {
+        "job_id": "online-logo-design",
+        "status": "Open"
+      },
+      {
+        "job_id": "online-product-copy",
+        "status": "Open"
+      },
+      {
+        "job_id": "online-data-cleanup",
+        "status": "Open"
+      },
+      {
+        "job_id": "audit-cancel-1",
+        "status": "Cancelled"
+      },
+      {
+        "job_id": "audit-smoke-job",
+        "status": "Completed"
+      },
+      {
+        "job_id": "audit-evidence-ref",
+        "status": "Disputed"
+      }
+    ],
+    "completion_skills": [
+      "welding",
+      "torch-work",
+      "gate-welding",
+      "repair-welding",
+      "merit-basics",
+      "coding",
+      "design",
+      "writing",
+      "data-entry"
+    ]
+  }
+}

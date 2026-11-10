@@ -26,7 +26,9 @@
 //   dispute job 1 NEAR (DAO pay_full) -> withdrawable 2.375 / retained 0.225, sub 2.65
 //   poster spends 4.52 NEAR escrow + 1 NEAR DAO bond + gas (10 NEAR faucet funds cover it).
 //   The refusal job (0.01) and the lend-expiry check job (0.01) stay
-//   Open on purpose; their escrow stays locked (no cancel method).
+//   Open at the end of the demo on purpose; their escrow is recovered
+//   after the demo with cancel_job (audit fix M-03), not inside the
+//   11 phases, so the refusal and expiry proofs stay readable.
 import fs from 'node:fs';
 import {
   N, GAS, MINT_GAS, DAO_BOND,
@@ -166,6 +168,10 @@ async function createJob(signer, jobCfg, { timeoutSeconds = null } = {}) {
     required_stamps: jobCfg.required_stamps,
     completion_stamp: jobCfg.completion_stamp,
     criteria: jobCfg.criteria,
+    // No arbiter is passed: since the audit fix (M-02) create_job no
+    // longer takes an arbiter parameter and the DAO (dao_id) always
+    // arbitrates. The completion skill must be in the DAO-governed
+    // registry (M-01) or create_job rejects it.
     ...(timeoutSeconds ? { timeout_ns: String(BigInt(timeoutSeconds) * 1_000_000_000n) } : {}),
   }, { deposit: payment });
   const job = await waitForView(() => getJob(jobCfg.job_id), (x) => x.status === 'Open' && x.payment === payment.toString(), `job ${jobCfg.job_id} should be Open with payment ${payment}`);
@@ -217,7 +223,7 @@ async function phase2() {
   const job = await getJob(j.job_id);
   expect(job.status === 'Open', `refused job should stay Open, got ${job.status}`);
   console.log(`   REFUSED onchain as expected: ${failure.slice(0, 200)}`);
-  console.log(`   (job ${j.job_id} stays Open; its 0.01 NEAR escrow stays locked, no cancel method)`);
+  console.log(`   (job ${j.job_id} stays Open; its 0.01 NEAR escrow is recovered after the demo with cancel_job, audit fix M-03)`);
   recordJob(j.job_id, { accept_refusal: failure });
   markStep(log, cfg, '2-refusal', { create_tx: tx, can_access_before: false, accept_failure: failure, job_status: 'Open' });
 }
@@ -479,8 +485,8 @@ async function phase11() {
     let job = await waitForView(() => getJob(j.job_id), (x) => x.status === 'Disputed', 'job should be Disputed');
     const posterEvidence = sha256hex(j.poster_evidence_text);
     const workerEvidence = sha256hex(j.worker_evidence_text);
-    const posterEvTx = await call(poster, cfg, CONTRACT_ID, 'submit_evidence', { job_id: j.job_id, evidence_hash: posterEvidence });
-    const workerEvTx = await call(worker, cfg, CONTRACT_ID, 'submit_evidence', { job_id: j.job_id, evidence_hash: workerEvidence });
+    const posterEvTx = await call(poster, cfg, CONTRACT_ID, 'submit_evidence', { job_id: j.job_id, evidence_hash: posterEvidence, evidence_ref: null });
+    const workerEvTx = await call(worker, cfg, CONTRACT_ID, 'submit_evidence', { job_id: j.job_id, evidence_hash: workerEvidence, evidence_ref: null });
     job = await waitForView(() => getJob(j.job_id), (x) => x.poster_evidence === posterEvidence && x.worker_evidence === workerEvidence, 'evidence hashes not recorded');
     expect(job.poster_evidence === posterEvidence, 'poster evidence hash not recorded');
     expect(job.worker_evidence === workerEvidence, 'worker evidence hash not recorded');

@@ -71,6 +71,7 @@ for (const j of JOBS) {
     required_stamps: j.required_stamps,
     completion_stamp: j.completion_stamp,
     criteria: j.criteria,
+    // No arbiter: since the audit fix (M-02) the DAO always arbitrates.
   }, { deposit: nearToYocto(j.payment_near) });
   // The tx hash returns before finality; poll until the job is visible.
   let job = null;

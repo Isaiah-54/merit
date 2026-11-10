@@ -48,6 +48,16 @@
 
   <h2>Kit</h2>
   <div id="kitList"><p class="muted loading">Loading kit…</p></div>
+  <div class="panel" id="buyKitSection" style="display:none">
+    <h3>Buy kit with retained</h3>
+    <p class="muted small">The retained balance is the 5% this Merit kept from job payments. Spend it here on kit for this Merit. Each kit costs <strong><span id="buyKitPrice">0.100 NEAR</span></strong>. Retained balance: <strong><span id="buyKitRetained">0.000 NEAR</span></strong>. The kit is a record held inside this Merit, not a separate NFT, and the job gate is the stamp, not the kit.</p>
+    <form id="buyKitForm">
+      <label for="buyKitId">Kit id</label>
+      <input id="buyKitId" type="text" placeholder="hammer2" autocomplete="off">
+      <button id="buyKitBtn" type="submit">Buy kit</button>
+      <p id="buyKitStatus" class="status" aria-live="polite"></p>
+    </form>
+  </div>
   <div class="panel">
     <h3>Deposit kit into this Merit</h3>
     <form id="depositKitForm">
@@ -93,9 +103,9 @@
         <button id="stampBtn" type="submit">Stamp</button>
       </form>
     </div>
-    <p class="muted small" id="stampNote" style="display:none">Stamps come from a whitelisted issuer, not from the holder. You earn your first stamp by passing the test below.</p>
-    <h3>Pass a test</h3>
-    <p class="muted small">Only the holder can pass a test for this Merit.</p>
+    <p class="muted small" id="stampNote" style="display:none">Stamps come from a whitelisted issuer, not from the holder. You earn your first stamp by passing the demo test below.</p>
+    <h3>Pass the demo test</h3>
+    <p class="muted small">Only the holder can pass the demo test for this Merit. Demo only: this is an onboarding check, not a real credential. The merit-basics stamp it earns is a demo stamp. It does not prove skill, and gated jobs should not treat it as a high trust credential.</p>
     <form id="testForm">
       <label for="testAnswer">Answer</label>
       <input id="testAnswer" type="text" placeholder="merit" autocomplete="off">

@@ -552,4 +552,5 @@ footer a:hover { color: var(--accent2); }
 .card.gate-open .acceptBtn { background: var(--ok); color: #06130b; }
 .card.gate-closed { border-color: var(--line); }
 .gate-need { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 11px 14px; font-weight: 600; }
+.evidence-flag { background: #3a2a00; border: 1px solid #b98a1d; color: #ffd97a; border-radius: 10px; padding: 11px 14px; font-weight: 600; }
 .gate-need b { color: var(--accent); }

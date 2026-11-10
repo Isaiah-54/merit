@@ -39,6 +39,22 @@ function pageStatus(msg) {
   const s = el("pageStatus");
   if (s) s.textContent = msg;
 }
+// Turn an evidence reference into a fetchable URL. A plain web link
+// or data link is used as posted; an IPFS CID or ipfs link opens
+// through a public gateway. Anything else is returned as posted.
+function evidenceRefUrl(ref) {
+  const r = String(ref || "").trim();
+  if (/^https?:\/\//i.test(r) || r.indexOf("data:") === 0) return r;
+  if (r.indexOf("ipfs://") === 0) return "https://ipfs.io/ipfs/" + r.slice(7);
+  if (/^(Qm[1-9A-HJ-NP-Za-km-z]{44}|baf[a-z0-9]{50,})$/.test(r)) return "https://ipfs.io/ipfs/" + r;
+  return r;
+}
+// SHA-256 of a byte buffer, as lowercase hex, for checking fetched
+// evidence against the hash recorded onchain.
+async function sha256Hex(buf) {
+  const digest = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 // Show a classified failure, never a bare "transaction failed".
 function reportFailure(err) {
   let r = null;
@@ -393,7 +409,7 @@ function levelBadgeHtml(level, stamps, capSuffix) {
 // appears, with the generic wording below.
 const BADGE_ORDER = ["merit-basics", "welding", "torch-work", "gate-welding", "repair-welding", "coding", "design", "writing", "data-entry"];
 const BADGE_CERTIFIES = {
-  "merit-basics": "Certifies the foundations of the Merit system \u2014 the holder has been grounded in how Merits, stamps and gated jobs work, and has completed their first recognised work.",
+  "merit-basics": "Certifies the demo onboarding check for the Merit system. The holder passed the public demo test and has been grounded in how Merits, stamps and gated jobs work. This is a demo stamp, not proof of a real skill, and gated jobs should not treat it as a high trust credential.",
   "welding": "Certifies welding skill \u2014 joining metal to a standard an issuer has inspected. Higher levels mark heavier, more demanding welding work.",
   "torch-work": "Certifies torch work \u2014 cutting and heating metal with a torch, done safely and to the line the job required.",
   "gate-welding": "Certifies gate welding \u2014 fabricating and hanging gates so they swing true, latch cleanly and hold under load.",
@@ -422,7 +438,7 @@ function badgeCertifies(skill) {
 // to the generic band wording in badgeLevelLine.
 const BADGE_LEVEL_LINES = {
   "merit-basics": {
-    1: "Proves the foundations: how Merits, stamps and gated jobs work, with first recognised work done.",
+    1: "Proves the demo onboarding check is done: the holder knows how Merits, stamps and gated jobs work. This is a demo stamp, not proof of a real skill.",
     2: "Proves the system used confidently \u2014 earning, lending and taking gated jobs without guidance.",
     3: "Proves deep command of the Merit system, trusted to model it for new holders."
   },

@@ -63,6 +63,10 @@ function fmtNsDate(ns) {
     return new Date(ms).toLocaleString();
   } catch (_) { return String(ns); }
 }
+// Completion skills the DAO registry holds. A job can only promise a
+// completion stamp the registry knows, so the create form offers
+// exactly these nine and the submit handler rejects anything else.
+const COMPLETION_SKILLS = ["welding", "torch-work", "gate-welding", "repair-welding", "merit-basics", "coding", "design", "writing", "data-entry"];
 // Parse the "skill level" lines from the create form into the
 // required_stamps shape the contract takes.
 function parseRequiredStamps(text) {
@@ -94,6 +98,26 @@ function buildCreateJobCall(jobId, title, description, requiredStamps, completio
     args: args,
     depositYocto: paymentYocto,
     gas: window.GAS_150,
+  };
+}
+// Build the exact cancel call the board sends. Kept separate so the
+// headless verifier can check the call without a real wallet.
+function buildCancelJobCall(jobId) {
+  return {
+    method: "cancel_job",
+    args: { job_id: jobId },
+    depositYocto: "0",
+    gas: window.GAS_100,
+  };
+}
+// Build the exact evidence call the board sends. The reference is
+// optional: null when the poster or worker posts only a hash.
+function buildSubmitEvidenceCall(jobId, evidenceHash, evidenceRef) {
+  return {
+    method: "submit_evidence",
+    args: { job_id: jobId, evidence_hash: evidenceHash, evidence_ref: evidenceRef || null },
+    depositYocto: "0",
+    gas: window.GAS_100,
   };
 }
 // The gate check, onchain, plus whether the Merit is blank and
@@ -213,6 +237,7 @@ function renderOpenJobs() {
   }
   offersEl.innerHTML = "<div class=\"grid\">" + filtered.map((job) => {
     const status = jobStatus(job);
+    const isPoster = Boolean(walletAccountId) && job.poster === walletAccountId;
     return "<div class=\"card\" data-job-id=\"" + escapeHtml(job.job_id) + "\">" +
       "<div class=\"job-card-top\"><div class=\"label\">" + escapeHtml(job.title || job.job_id) + "</div><span class=\"chip open\">Open</span></div>" +
       jobTypeHtml(job) +
@@ -226,6 +251,7 @@ function renderOpenJobs() {
       "<p class=\"muted small\" style=\"margin:6px 0 0\">A Merit without the stamp above is refused. Try a blank Merit and the gate will say so plainly.</p>" +
       "<div class=\"vote-row\"><button type=\"button\" class=\"btn secondary checkBtn\">Check access</button>" +
       "<button type=\"button\" class=\"btn acceptBtn\">Take job</button></div>" +
+      (isPoster ? "<div class=\"vote-row\"><button type=\"button\" class=\"btn secondary cancelBtn\">Cancel job</button></div>" : "") +
       "<div class=\"msg jobMsg\" aria-live=\"polite\"></div>" +
       "</div>";
   }).join("") + "</div>";
@@ -341,6 +367,56 @@ function wireJobCard(card, job) {
       completeBtn.disabled = false;
     }
   });
+  // Cancel: poster only, while the job is Open. The result shows in
+  // this card's own message line, not at the top of the page. The
+  // list re-reads a moment later, so the job then shows Cancelled.
+  const cancelBtn = card.querySelector(".cancelBtn");
+  if (cancelBtn) cancelBtn.addEventListener("click", async () => {
+    if (!walletAccountId) { msg.textContent = "Connect your wallet first."; return; }
+    cancelBtn.disabled = true;
+    msg.textContent = "Sending cancel. Confirm in your wallet.";
+    try {
+      const call = buildCancelJobCall(jobId);
+      await walletCall(contractId(), call.method, call.args, call.depositYocto, call.gas);
+      msg.textContent = "Job cancelled. The escrow is refunded to the poster.";
+      setTimeout(loadJobs, 1500);
+    } catch (e) {
+      let r = null;
+      try { if (typeof classifyFailure === "function") r = classifyFailure(e); } catch (_) { /* fall through */ }
+      msg.textContent = r ? r.text : "Rejected. " + (e.message || String(e)).slice(0, 200) + " No money moved.";
+    } finally {
+      cancelBtn.disabled = false;
+    }
+  });
+  // Submit evidence: either side posts the SHA 256 hash of its work
+  // plus an optional reference to where the content lives, so the DAO
+  // can fetch it and check it against the hash. The result shows in
+  // this card's own evidence line, not at the top of the page.
+  const evidenceBtn = card.querySelector(".submitEvidenceBtn");
+  if (evidenceBtn) evidenceBtn.addEventListener("click", async () => {
+    const hashInput = card.querySelector(".evidenceHash");
+    const refInput = card.querySelector(".evidenceRef");
+    const evMsg = card.querySelector(".evidenceMsg");
+    if (!hashInput || !evMsg) return;
+    if (!walletAccountId) { evMsg.textContent = "Connect your wallet first."; return; }
+    const hash = hashInput.value.trim().toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(hash)) { evMsg.textContent = "Enter the evidence hash: 64 hex characters, the SHA 256 of the evidence content."; return; }
+    const ref = refInput ? refInput.value.trim() : "";
+    evidenceBtn.disabled = true;
+    evMsg.textContent = "Sending evidence. Confirm in your wallet.";
+    try {
+      const call = buildSubmitEvidenceCall(jobId, hash, ref || null);
+      await walletCall(contractId(), call.method, call.args, call.depositYocto, call.gas);
+      evMsg.textContent = "Evidence submitted. It will show here once the chain confirms it.";
+      setTimeout(loadJobs, 1500);
+    } catch (e) {
+      let r = null;
+      try { if (typeof classifyFailure === "function") r = classifyFailure(e); } catch (_) { /* fall through */ }
+      evMsg.textContent = r ? r.text : "Rejected. " + (e.message || String(e)).slice(0, 200) + " No money moved.";
+    } finally {
+      evidenceBtn.disabled = false;
+    }
+  });
 }
 
 async function loadJobs() {
@@ -350,10 +426,11 @@ async function loadJobs() {
   const hasCounts = el("jobsOpenCount") || el("jobsDoneCount") || el("jobsOffersBadge") || el("jobsDoneBadge");
   if (!offersEl && !progressEl && !doneEl && !hasCounts) return;
   try {
-    const jobs = await view("list_jobs", {}) || [];
+    const jobs = await view("list_jobs", { from_index: 0, limit: 50 }) || [];
     const openJobs = jobs.filter((j) => jobStatus(j) === "Open");
     const doneJobs = jobs.filter((j) => jobStatus(j) === "Completed");
-    const progressJobs = jobs.filter((j) => { const s = jobStatus(j); return s !== "Open" && s !== "Completed"; });
+    const cancelledJobs = jobs.filter((j) => jobStatus(j) === "Cancelled");
+    const progressJobs = jobs.filter((j) => { const s = jobStatus(j); return s !== "Open" && s !== "Completed" && s !== "Cancelled"; });
     setJobsCounts(openJobs.length, doneJobs.length);
 
     // Open offers: rendered through the live search filter.
@@ -361,11 +438,12 @@ async function loadJobs() {
     renderOpenJobs();
 
     // Taken jobs (accepted / disputed) stay visible under offers.
+    // Cancelled jobs show in their own section below them, so a
+    // poster who cancels sees the job as Cancelled on the next load.
     if (progressEl) {
-      if (!progressJobs.length) {
-        progressEl.innerHTML = "";
-      } else {
-        progressEl.innerHTML = "<h3 class=\"job-subhead\">Already taken: in progress or disputed</h3><div class=\"grid\">" + progressJobs.map((job) => {
+      let progressHtml = "";
+      if (progressJobs.length) {
+        progressHtml += "<h3 class=\"job-subhead\">Already taken: in progress or disputed</h3><div class=\"grid\">" + progressJobs.map((job) => {
           const status = jobStatus(job);
           const worker = jobWorker(job);
           const pid = jobProposalId(job);
@@ -377,19 +455,42 @@ async function loadJobs() {
             jobFactsHtml(job, status, { hidePay: true }) +
             (worker ? "<div class=\"kv\"><span>Worker</span><b><a class=\"mono\" href=\"merit.html?id=" + encodeURIComponent(worker) + "\">" + escapeHtml(worker) + "</a></b></div>" : "") +
             "<p><strong>Acceptance criteria</strong><br>" + escapeHtml(job.criteria || "Not posted yet.") + "</p>" +
-            (job.poster_evidence ? "<p class=\"small\"><strong>Poster evidence</strong><br><span class=\"mono\">" + escapeHtml(job.poster_evidence) + "</span></p>" : "") +
-            (job.worker_evidence ? "<p class=\"small\"><strong>Worker evidence</strong><br><span class=\"mono\">" + escapeHtml(job.worker_evidence) + "</span></p>" : "") +
+            (job.poster_evidence ? "<p class=\"small\"><strong>Poster evidence</strong><br><span class=\"mono\">" + escapeHtml(job.poster_evidence) + "</span>" + (job.poster_evidence_ref ? " <a href=\"" + escapeHtml(evidenceRefUrl(job.poster_evidence_ref)) + "\" target=\"_blank\" rel=\"noopener\">View evidence</a>" : "") + "</p>" : "") +
+            (job.worker_evidence ? "<p class=\"small\"><strong>Worker evidence</strong><br><span class=\"mono\">" + escapeHtml(job.worker_evidence) + "</span>" + (job.worker_evidence_ref ? " <a href=\"" + escapeHtml(evidenceRefUrl(job.worker_evidence_ref)) + "\" target=\"_blank\" rel=\"noopener\">View evidence</a>" : "") + "</p>" : "") +
             (status === "Disputed" ? "<p><a href=\"dao.html" + (pid != null ? "#proposal-" + escapeHtml(String(pid)) : "") + "\">See this dispute in the DAO proposals" + (pid != null ? " (proposal " + escapeHtml(String(pid)) + ")" : "") + "</a></p>" : "") +
             "<p class=\"muted small\">Job <span class=\"mono\">" + escapeHtml(job.job_id) + "</span> \u2022 Arbiter <span class=\"mono\">" + escapeHtml(job.arbiter || window.DAO_ID) + "</span></p>" +
             "<label>Your Merit token id</label>" +
             "<input type=\"text\" class=\"acceptMerit\" placeholder=\"merit-2\" autocomplete=\"off\">" +
             "<div class=\"vote-row\"><button type=\"button\" class=\"btn secondary completeBtn\">Mark complete</button></div>" +
             "<div class=\"msg jobMsg\" aria-live=\"polite\"></div>" +
+            "<div class=\"panel\" style=\"margin-top:10px\"><h3 style=\"margin-top:0\">Submit evidence</h3>" +
+            "<p class=\"muted small\" style=\"margin-top:0\">Post the hash of your evidence, plus a link to the evidence content itself, so the DAO can fetch it and check it against the hash.</p>" +
+            "<label>Evidence hash (SHA 256, 64 hex characters)</label>" +
+            "<input type=\"text\" class=\"evidenceHash\" placeholder=\"64 hex characters\" autocomplete=\"off\">" +
+            "<label>Evidence reference (optional link to the evidence content)</label>" +
+            "<input type=\"text\" class=\"evidenceRef\" placeholder=\"https://example.com/evidence.txt\" autocomplete=\"off\">" +
+            "<div class=\"vote-row\"><button type=\"button\" class=\"btn secondary submitEvidenceBtn\">Submit evidence</button></div>" +
+            "<div class=\"msg evidenceMsg\" aria-live=\"polite\"></div></div>" +
             "</div>";
         }).join("") + "</div>";
+      }
+      if (cancelledJobs.length) {
+        progressHtml += "<h3 class=\"job-subhead\">Cancelled</h3><div class=\"grid\">" + cancelledJobs.map((job) => {
+          return "<div class=\"card\" data-job-id=\"" + escapeHtml(job.job_id) + "\">" +
+            "<div class=\"job-card-top\"><div class=\"label\">" + escapeHtml(job.title || job.job_id) + "</div><span class=\"chip status\">Cancelled</span></div>" +
+            jobTypeHtml(job) +
+            jobDescriptionHtml(job) +
+            jobFactsHtml(job, "Cancelled", { hidePay: true }) +
+            "<p class=\"muted small\">The escrow was refunded to the poster.</p>" +
+            "<p class=\"muted small\">Job <span class=\"mono\">" + escapeHtml(job.job_id) + "</span> \u2022 Posted by <span class=\"mono\">" + escapeHtml(job.poster || "unknown") + "</span></p>" +
+            "</div>";
+        }).join("") + "</div>";
+      }
+      progressEl.innerHTML = progressHtml;
+      if (progressJobs.length) {
         progressEl.querySelectorAll(".card").forEach((card) => {
           const j = progressJobs.find((x) => x.job_id === card.getAttribute("data-job-id"));
-          wireJobCard(card, j || { job_id: card.getAttribute("data-job-id"), required_stamps: [] });
+          if (j) wireJobCard(card, j);
         });
       }
     }
@@ -460,9 +561,12 @@ async function loadJobs() {
     if (!jobId) { pageStatus("Enter a job id."); return; }
     const title = el("jobTitle").value.trim();
     const description = el("jobDesc").value.trim();
+    if (description.length > 2000) { pageStatus("The description must be 2000 characters or fewer."); return; }
     let requiredStamps;
     try { requiredStamps = parseRequiredStamps(el("jobStamps").value); } catch (e) { pageStatus(e.message); return; }
+    if (requiredStamps.length > 10) { pageStatus("A job can require at most 10 stamps."); return; }
     const completionSkill = el("jobCompletionSkill").value.trim();
+    if (COMPLETION_SKILLS.indexOf(completionSkill.toLowerCase()) < 0) { pageStatus("Pick a completion stamp skill from the list. Only a skill in the DAO registry can be promised."); return; }
     const completionLevel = parseInt(el("jobCompletionLevel").value, 10);
     if (!completionSkill) { pageStatus("Enter a completion stamp skill."); return; }
     if (!Number.isInteger(completionLevel) || completionLevel < 1 || completionLevel > 3) { pageStatus("Completion stamp level must be 1 to 3."); return; }
@@ -498,5 +602,5 @@ async function loadJobs() {
   });
 })();
 
-window.meritWalletChanged = function () { /* lists do not depend on the wallet */ };
+window.meritWalletChanged = function () { renderOpenJobs(); };
 loadJobs();

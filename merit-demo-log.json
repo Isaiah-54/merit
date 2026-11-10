@@ -177,6 +177,22 @@
         "stamped_at": "1794294569236672958"
       },
       "finished_at": "2026-11-10T07:09:39.852Z"
+    },
+    "12-audit-fix": {
+      "status": "done",
+      "finished_at": "2026-11-10T12:44:58.201Z",
+      "cancel_txs": {
+        "demo-refusal": "FhRsy6hhsvaWRYx9jDadVQmP4DQQ1vMnCE7CSp9V6AxP",
+        "demo-lend-expired": "BAjRDa9sZQS7iZmGzBUjE3zfbHBHLtCJpiK1sNkVS8XR"
+      },
+      "mint_kit_tx": "DFeNWKHj2skmCg9rHEf5VXKvWDXB2c2ziLDqYJu1FMkj",
+      "buy_kit_tx": "EQ3zHqtmPCxqDjHrHqyCbeNR9JenVMyhTSkfghW3zHu",
+      "kit": "demo-hammer",
+      "retained_yocto": "125000000000000000000000",
+      "withdrawable_yocto": "2375000000000000000000000",
+      "sub_balance_yocto": "2550000000000000000000000",
+      "evidence_ref_job": "audit-evidence-ref",
+      "note": "Audit-fix verification pass: cancel_job recovered both stuck 0.01 NEAR escrows; buy_kit spent 0.1 NEAR retained on demo-hammer; evidence_ref verified on a fresh test job. Full record: merit-audit-fix-log.json."
     }
   },
   "jobs": {
@@ -200,8 +216,11 @@
         "skill": "welding"
       },
       "create_tx": "BiSjKW21QUiEKTp7EMiH4R5mMeRDsBb4mR4GenGMjQnM",
-      "status": "Open",
-      "accept_refusal": "{\"index\":0,\"kind\":{\"index\":0,\"kind\":{\"FunctionCallError\":{\"ExecutionError\":\"Smart contract panicked: panicked at contract/src/lib.rs:1194:9:\\nMerit does not satisfy the job's required stamps\"}}}}"
+      "status": "Cancelled",
+      "accept_refusal": "{\"index\":0,\"kind\":{\"index\":0,\"kind\":{\"FunctionCallError\":{\"ExecutionError\":\"Smart contract panicked: panicked at contract/src/lib.rs:1194:9:\\nMerit does not satisfy the job's required stamps\"}}}}",
+      "cancel_tx": "FhRsy6hhsvaWRYx9jDadVQmP4DQQ1vMnCE7CSp9V6AxP",
+      "refund_pending": false,
+      "refund_yocto": "10000000000000000000000"
     },
     "demo-weld-gate": {
       "title": "Weld the demo gate",
@@ -263,8 +282,11 @@
         "skill": "torch-work"
       },
       "create_tx": "CgmDWWghdYjh5aHfR4BERE8WZnioEDqudBw2yAMXfEpK",
-      "status": "Open",
-      "accept_refusal_after_expiry": "{\"index\":0,\"kind\":{\"index\":0,\"kind\":{\"FunctionCallError\":{\"ExecutionError\":\"Smart contract panicked: panicked at contract/src/lib.rs:616:9:\\ncaller is neither the holder nor a live lend delegate\"}}}}"
+      "status": "Cancelled",
+      "accept_refusal_after_expiry": "{\"index\":0,\"kind\":{\"index\":0,\"kind\":{\"FunctionCallError\":{\"ExecutionError\":\"Smart contract panicked: panicked at contract/src/lib.rs:616:9:\\ncaller is neither the holder nor a live lend delegate\"}}}}",
+      "cancel_tx": "BAjRDa9sZQS7iZmGzBUjE3zfbHBHLtCJpiK1sNkVS8XR",
+      "refund_pending": false,
+      "refund_yocto": "10000000000000000000000"
     },
     "demo-timeout-gate": {
       "title": "Timeout demo: weld the back gate",
@@ -311,7 +333,117 @@
       "proposal_id": 0,
       "propose_tx": "6pAA4iK6xX3ViY9Hbzkz5wDEPCp9dRNsxcirSYkFW2zr",
       "dao_proposal_id": 0
+    },
+    "audit-cancel-1": {
+      "title": "Audit smoke: cancel path",
+      "payment_near": "0.01",
+      "status": "Cancelled",
+      "note": "Contract agent smoke test for cancel_job (M-03), redeploy 2026-11-10."
+    },
+    "audit-smoke-job": {
+      "title": "Audit smoke: registered skill job",
+      "payment_near": "2",
+      "status": "Completed",
+      "note": "Contract agent smoke test for the completion-skill registry (M-01) and buy_kit (M-08), redeploy 2026-11-10."
+    },
+    "audit-evidence-ref": {
+      "title": "Audit check: evidence reference storage",
+      "payment_near": "0.01",
+      "status": "Disputed",
+      "create_tx": "Bond2mzp1vkCEzHmtiVAtE26yXVZK8haVrvhuohQBz64",
+      "accept_tx": "4BhGvo2MHFR5eHx42h1EyEK8HR6WYRrnHcfp4UGAshTe",
+      "dispute_tx": "7y4Y2GwxWkSiZZSZms8SfCrT999P2QNcibfpJTQ2EwcG",
+      "poster_evidence_tx": "GAzhYNTmcypSTrkiuACcKcqYTZpiVuhJYFB6idG6FL27",
+      "worker_evidence_tx": "DY1Ko6rSUanX1gXyoteYFRGHJgSiYZ339XRF5jpNJUdT",
+      "poster_evidence_hash": "5023fbeb2404e75d440136e59e061db8acafbde210de75c7f67cefd6d8a04097",
+      "worker_evidence_hash": "6c34b35162dcc2e436b3e95042388217b08519c2beaddc60727f1ee6fe542cac",
+      "poster_evidence_ref": "data:text/plain;base64,YXVkaXQgZXZpZGVuY2U6IHBvc3RlciBwaG90byBvZiB0aGUgZmluaXNoZWQgd29yaw==",
+      "worker_evidence_ref": "data:text/plain;base64,YXVkaXQgZXZpZGVuY2U6IHdvcmtlciBwaG90byBvZiB0aGUgZmluaXNoZWQgd29yaw==",
+      "note": "Demo+docs audit-fix check for evidence_ref (M-06). Left Disputed on purpose: submit_evidence requires a Disputed job. Its 0.01 NEAR escrow stays locked until a DAO refund proposal resolves it; no proposal was created."
     }
   },
-  "updated_at": "2026-11-10T07:09:39.852Z"
+  "updated_at": "2026-11-10T12:46:05.215Z",
+  "audit_fix": {
+    "ran_at": "2026-11-10T12:44:58.201Z",
+    "log_file": "merit-audit-fix-log.json",
+    "redeploy": {
+      "wasm_bytes": 539762,
+      "wasm_sha256": "3b6a2baa1309ae7eebf697609eca6ad077b5678af93ac3792c2742a9d7e41314",
+      "deploy_tx": "8JyZd3JhPmZZgbJwnDgqQAka8LhpBV1X76J7rZRHbvGg",
+      "migrate_tx": "BRDnkBTgHJmfzAmG9j6nuNuv37ah7tdAYkCMzrNbNq6q",
+      "at": "2026-11-10T12:34:02Z"
+    },
+    "cancel_jobs": {
+      "demo-refusal": {
+        "cancel_tx": "FhRsy6hhsvaWRYx9jDadVQmP4DQQ1vMnCE7CSp9V6AxP",
+        "payment_yocto": "10000000000000000000000",
+        "status": "Cancelled",
+        "refund_pending": false
+      },
+      "demo-lend-expired": {
+        "cancel_tx": "BAjRDa9sZQS7iZmGzBUjE3zfbHBHLtCJpiK1sNkVS8XR",
+        "payment_yocto": "10000000000000000000000",
+        "status": "Cancelled",
+        "refund_pending": false
+      },
+      "poster_balance_before_yocto": "3393031459705226500000000",
+      "poster_balance_after_yocto": "3393031459705226500000000",
+      "poster_net_delta_yocto": "0",
+      "note": "This log was written by the resumed run: the two cancels had already landed in the first run (a stale get_kit read crashed it after the cancels), so the balances above were both read after the refunds and the delta is 0. The refunds are proven by the onchain state itself: both jobs read Cancelled with refund_pending false, which the contract only sets after the refund callback succeeds. Each refund was exactly 0.01 NEAR, the full escrow."
+    },
+    "buy_kit": {
+      "kit_token_id": "demo-hammer",
+      "kit_name": "Demo Hammer",
+      "kit_price_yocto": "100000000000000000000000",
+      "mint_kit_tx": "DFeNWKHj2skmCg9rHEf5VXKvWDXB2c2ziLDqYJu1FMkj",
+      "buy_kit_tx": "EQ3zHqtmPCxqDjHrHqyCbeNR9JenVMyhTSkfghW3zHu",
+      "seller": "merit-poster.testnet",
+      "retained_before_yocto": "225000000000000000000000",
+      "retained_after_yocto": "125000000000000000000000",
+      "withdrawable_before_yocto": "2375000000000000000000000",
+      "withdrawable_after_yocto": "2375000000000000000000000",
+      "kit_after": [
+        "welding-torch",
+        "demo-hammer"
+      ],
+      "sub_before_yocto": "2650000000000000000000000",
+      "sub_after_yocto": "2550000000000000000000000",
+      "seller_before_yocto": "3393031459705226500000000",
+      "seller_after_yocto": "3493031459705226500000000"
+    },
+    "evidence_ref": {
+      "job_id": "audit-evidence-ref",
+      "create_tx": "Bond2mzp1vkCEzHmtiVAtE26yXVZK8haVrvhuohQBz64",
+      "accept_tx": "4BhGvo2MHFR5eHx42h1EyEK8HR6WYRrnHcfp4UGAshTe",
+      "dispute_tx": "7y4Y2GwxWkSiZZSZms8SfCrT999P2QNcibfpJTQ2EwcG",
+      "poster_evidence_tx": "GAzhYNTmcypSTrkiuACcKcqYTZpiVuhJYFB6idG6FL27",
+      "worker_evidence_tx": "DY1Ko6rSUanX1gXyoteYFRGHJgSiYZ339XRF5jpNJUdT",
+      "poster_evidence_hash": "5023fbeb2404e75d440136e59e061db8acafbde210de75c7f67cefd6d8a04097",
+      "worker_evidence_hash": "6c34b35162dcc2e436b3e95042388217b08519c2beaddc60727f1ee6fe542cac",
+      "poster_evidence_ref": "data:text/plain;base64,YXVkaXQgZXZpZGVuY2U6IHBvc3RlciBwaG90byBvZiB0aGUgZmluaXNoZWQgd29yaw==",
+      "worker_evidence_ref": "data:text/plain;base64,YXVkaXQgZXZpZGVuY2U6IHdvcmtlciBwaG90byBvZiB0aGUgZmluaXNoZWQgd29yaw==",
+      "status": "Disputed",
+      "note": "Test job left Disputed on purpose: submit_evidence requires a Disputed job. Its 0.01 NEAR escrow stays locked until a DAO refund proposal resolves it; no proposal was created here."
+    },
+    "completion_skills": [
+      "welding",
+      "torch-work",
+      "gate-welding",
+      "repair-welding",
+      "merit-basics",
+      "coding",
+      "design",
+      "writing",
+      "data-entry"
+    ],
+    "smoke_artefacts": {
+      "token": "audit-smoke",
+      "jobs": {
+        "audit-cancel-1": "Cancelled",
+        "audit-smoke-job": "Completed"
+      },
+      "kit": "audit-torch",
+      "note": "Extra state from the contract agent redeploy smoke test, 2026-11-10. Recorded here, not deleted."
+    }
+  }
 }

@@ -55,7 +55,7 @@ if (!walletInfo.deployed) throw new Error('wallet global contract not deployed')
 if (walletInfo.embedded) throw new Error('wallet should use the global contract, not embedded');
 if (walletInfo.code_hash !== walletSha256) throw new Error(`wallet code hash mismatch: ${walletInfo.code_hash} vs ${walletSha256}`);
 const balance = await account.getAccountBalance();
-const issuers = await account.viewFunction({ contractId: CONTRACT_ID, methodName: 'list_issuers', args: {} });
+const issuers = await account.viewFunction({ contractId: CONTRACT_ID, methodName: 'list_issuers', args: { from_index: '0', limit: 50 } });
 console.log('list_issuers:', JSON.stringify(issuers));
 
 const log = {

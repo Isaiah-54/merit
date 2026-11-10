@@ -51,7 +51,7 @@ async function loadBadges() {
       if (jobTitle && !rec.jobs.some((j) => j.title === jobTitle)) rec.jobs.push({ title: jobTitle, jobId: jobId || "", payment: payment || null });
     };
     try {
-      const jobs = await view("list_jobs", {}) || [];
+      const jobs = await view("list_jobs", { from_index: 0, limit: 50 }) || [];
       for (const job of jobs) {
         if (badgeJobStatus(job) !== "Open") continue;
         const cs = job.completion_stamp || job.completionStamp || null;
