@@ -52,7 +52,7 @@ const MERIT2 = {
   balance_withdrawable: "0",
   balance_retained: "0",
   locked: false,
-  kit: [],
+  kit: ["welding-torch", "demo-hammer"],
   lend: null,
 };
 // A Merit with one stamp only, so the gate refusal can name the
@@ -60,6 +60,22 @@ const MERIT2 = {
 const MERIT3 = {
   token_id: "merit-3",
   owner_id: "dave.testnet",
+  level: 1,
+  stamps: [
+    { skill: "merit-basics", level: 1, issuer: "Merit Test", stamped_at: 1760000000000000000 },
+  ],
+  balance_withdrawable: "0",
+  balance_retained: "0",
+  locked: true,
+  kit: [],
+  lend: null,
+};
+// The signed-in user's own Merit (crypto), with no kit, so the
+// no-id default can be checked: a connected owner sees their own
+// Merit and an empty kit, never the demo Merit's tools.
+const MERIT_CRYPTO = {
+  token_id: "crypto",
+  owner_id: "clearsite587.testnet",
   level: 1,
   stamps: [
     { skill: "merit-basics", level: 1, issuer: "Merit Test", stamped_at: 1760000000000000000 },
@@ -143,12 +159,14 @@ function handleRpc(body) {
       { token_id: "merit-1", owner_id: "alice.testnet", metadata: { title: "Alice Merit" } },
       { token_id: "merit-2", owner_id: "carol.testnet", metadata: { title: "Carol Merit" } },
       { token_id: "merit-3", owner_id: "dave.testnet", metadata: { title: "Dave Merit" } },
+      { token_id: "crypto", owner_id: "clearsite587.testnet", metadata: { title: "Crypto Merit" } },
     ]);
   }
   if (method === "get_merit") {
     if (args.token_id === "merit-1") return rpcResult(MERIT1);
     if (args.token_id === "merit-2") return rpcResult(MERIT2);
     if (args.token_id === "merit-3") return rpcResult(MERIT3);
+    if (args.token_id === "crypto") return rpcResult(MERIT_CRYPTO);
     throw new Error("token does not exist");
   }
   if (method === "get_kit") return rpcResult({ kit_token_id: args.kit_token_id, name: "Welding Hammer" });
@@ -254,7 +272,9 @@ async function main() {
     const setWalletStub = async (accountId) => {
       await page.evaluate((acct) => {
         window.__captured = [];
-        window.__sendImpl = async (tx) => { window.__captured.push(tx); return {}; };
+        // The stubbed wallet returns a fixed transaction hash, so the
+        // status line's hash link and copy button can be checked.
+        window.__sendImpl = async (tx) => { window.__captured.push(tx); return { transactionHashes: ["0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"] }; };
         window.nearWallet = {
           sendTransaction: async (tx) => window.__sendImpl(tx),
           restore: async () => null,
@@ -277,7 +297,10 @@ async function main() {
     check("index shows level and lock state",
       levelBadges.some((x) => x.includes("Level") && x.includes("3")) && t.includes("Locked"),
       "badges=" + JSON.stringify(levelBadges));
-    check("index list cards carry the seal", (await page.$$(".merit-list-visual")).length === 3);
+    check("index list cards carry the seal", (await page.$$(".merit-list-visual")).length === 4);
+    check("index five things use a five across grid",
+      (await page.$eval(".five-grid", (el) => getComputedStyle(el).gridTemplateColumns.split(" ").length)) === 5);
+    check("index mint hint names hyphens only, not dots", t.includes("Lowercase letters, digits and hyphens only"));
     check("index mint form present", await page.$("#mintForm") !== null);
     check("index mint button links to mint page", await page.$eval("a.btn[href='mint.html']", (a) => a.textContent.includes("Mint a Merit")));
     const journeyLabels = await page.$$eval(".journey-step .journey-label", (els) => els.map((e) => e.textContent.trim()));
@@ -301,6 +324,10 @@ async function main() {
       mintTx ? JSON.stringify(mintTx.actions[0]) : "no call captured");
     t = await text();
     check("mint shows pending then sent state", t.includes("Mint sent") || t.includes("Sending transaction"));
+    // The status line shows the transaction hash (shortened, linked
+    // to Nearblocks) and the next step, not just "Mint sent".
+    check("mint status shows the transaction hash and the next step",
+      t.includes("0123456789…89abcdef") && t.includes("Next:") && t.toLowerCase().includes("pass the demo test"), t);
 
     // ---------- Mint page ----------
     await page.goto(BASE + "/mint.html", { waitUntil: "networkidle0" });
@@ -356,11 +383,14 @@ async function main() {
     // capitals: compare lowercased for the label text.
     check("detail balance hero shows the sub-account balance big", (await page.$(".balance-hero-num")) !== null && t.toLowerCase().includes("sub-account balance"));
     check("detail withdraw hero button shows the withdrawable amount", (await page.$("#withdrawAllBtn")) !== null && t.includes("Withdraw 2.500 NEAR"));
-    check("detail next step for a paid Merit is withdraw", t.toLowerCase().includes("next step: get paid out") && t.includes("Withdraw 2.500 NEAR"));
+    check("detail next step for a paid Merit is withdraw", t.toLowerCase().includes("next step: withdraw") && t.includes("Withdraw 2.500 NEAR"));
 
-    // Withdraw builds the right call.
+    // Withdraw builds the right call. The amount field defaults to
+    // the withdrawable balance, so the test sets it to 1 first, after
+    // the load that fills the default has finished.
     await setWalletStub("alice.testnet");
-    await page.type("#withdrawAmount", "1");
+    await sleep(900);
+    await page.$eval("#withdrawAmount", (el) => { el.value = "1"; });
     await page.click("#withdrawBtn");
     await sleep(500);
     const wdTx = await page.evaluate(() => window.__captured[0]);
@@ -369,6 +399,17 @@ async function main() {
       wdTx.actions[0].args.token_id === "merit-1" &&
       wdTx.actions[0].args.amount === "1000000000000000000000000",
       wdTx ? JSON.stringify(wdTx.actions[0]) : "no call captured");
+    // The amount field defaults to the withdrawable balance after a
+    // reload, and Max fills it.
+    await sleep(600);
+    check("withdraw amount defaults to the withdrawable balance",
+      (await page.$eval("#withdrawAmount", (el) => el.value)) === "2.500",
+      await page.$eval("#withdrawAmount", (el) => el.value));
+    await page.$eval("#withdrawAmount", (el) => { el.value = "0.5"; });
+    await page.click("#withdrawMaxBtn");
+    check("withdraw Max fills the withdrawable balance",
+      (await page.$eval("#withdrawAmount", (el) => el.value)) === "2.500",
+      await page.$eval("#withdrawAmount", (el) => el.value));
 
     // Buy kit with retained: the owner sees the section with the
     // retained balance and the fixed 0.1 NEAR price, and the call
@@ -416,17 +457,28 @@ async function main() {
     const testStatusText = await page.$eval("#testStatus", (el) => el.textContent);
     check("test status shows below the Submit button", testStatusText.includes("Sent") || testStatusText.includes("Sending answer"), testStatusText);
 
-    // Merit page with no id defaults to merit-2, with a switcher.
+    // Merit page with no id: a visitor with no wallet defaults to
+    // the demo merit-2, with its kit. A connected owner defaults to
+    // their own first Merit, never the demo's kit.
     await page.goto(BASE + "/merit.html", { waitUntil: "networkidle0" });
     await sleep(900);
     t = await text();
-    check("detail defaults to merit-2", (await page.$eval("#meritTitle", (el) => el.textContent)) === "merit-2");
+    check("detail defaults to merit-2 with no wallet", (await page.$eval("#meritTitle", (el) => el.textContent)) === "merit-2");
+    check("detail default merit-2 shows its kit", t.includes("welding-torch") && t.includes("demo-hammer") && t.includes("The tools merit-2 carries"), t);
     const pickerText = await page.$eval("#meritPicker", (el) => el.textContent);
     check("detail switcher lists merit-1 and merit-2", pickerText.includes("merit-1") && pickerText.includes("merit-2"));
     check("detail default merit-2 is blank", t.includes("No stamps yet"));
-    check("detail next step for a blank Merit is pass the demo test", t.toLowerCase().includes("next step: earn your first stamp") && t.includes("Pass the demo test to earn your first stamp"));
+    check("detail next step for a blank Merit is pass the demo test", t.toLowerCase().includes("next step: pass the demo test") && t.includes("Pass the demo test to earn your first stamp"));
     check("demo test is labelled demo only, not a high trust credential",
       t.includes("Demo only") && t.includes("demo stamp") && t.includes("does not prove skill"));
+    // A connected owner who opens the page with no id sees their own
+    // Merit, not the demo. crypto has no kit, so the kit list is
+    // empty and names crypto.
+    await setWalletStub("clearsite587.testnet");
+    await sleep(900);
+    t = await text();
+    check("detail defaults to the connected owner's own Merit", (await page.$eval("#meritTitle", (el) => el.textContent)) === "crypto");
+    check("detail crypto kit is empty and names the Merit", t.includes("No kit inside crypto yet") && t.includes("The tools crypto carries"), t);
 
     // ---------- Jobs hub ----------
     await page.goto(BASE + "/jobs.html", { waitUntil: "networkidle0" });
@@ -497,10 +549,13 @@ async function main() {
     check("accept refusal sends no transaction", sentCount === 0 && msg.includes("Refused"), "sent=" + sentCount + " msg=" + msg);
 
     // Pagination: every list_jobs call the board made passed explicit
-    // from_index and limit, never an unbounded read.
-    check("list_jobs calls pass explicit pagination",
+    // from_index and limit, never an unbounded read. from_index is
+    // a STRING: the contract declares Option<U64>, which NEAR
+    // deserialises from a JSON string, so an integer 0 is rejected
+    // onchain ("invalid type: integer `0`, expected a string").
+    check("list_jobs calls pass explicit pagination with string from_index",
       rpcCalls.filter((c) => c.method === "list_jobs").length > 0 &&
-      rpcCalls.filter((c) => c.method === "list_jobs").every((c) => c.args.from_index === 0 && c.args.limit === 50),
+      rpcCalls.filter((c) => c.method === "list_jobs").every((c) => c.args.from_index === "0" && c.args.limit === 50),
       JSON.stringify(rpcCalls.filter((c) => c.method === "list_jobs")));
     // A cancelled job renders as Cancelled, not as open or taken.
     t = await text();
@@ -593,6 +648,10 @@ async function main() {
     await sleep(600);
     t = await text();
     check("create page has the posting form", await page.$("#createJobForm") !== null && await page.$("#createJobBtn") !== null);
+    check("create page is labelled Post job, one consistent label",
+      t.includes("Post job") && !t.includes("Create job"));
+    check("create page states the 5 percent working royalty",
+      t.includes("The Merit keeps 5% of the pay as its working royalty") && t.includes("95% goes to the worker") && t.includes("stays in the Merit's own account"));
     check("create completion skill is a text input with a datalist of the registry skills",
       (await page.$eval("#jobCompletionSkill", (el) => el.tagName.toLowerCase())) === "input" &&
       JSON.stringify(await page.$$eval("#completionSkillsList option", (els) => els.map((o) => o.value))) ===
@@ -640,6 +699,10 @@ async function main() {
     check("create job sends no arbiter, the DAO always arbitrates",
       jobTx && !("arbiter" in jobTx.actions[0].args),
       jobTx ? JSON.stringify(jobTx.actions[0].args) : "no call captured");
+    // The status line shows the transaction hash and the next step.
+    const jobStatusText = await text();
+    check("create job status shows the transaction hash and the next step",
+      jobStatusText.includes("Job sent") && jobStatusText.includes("0123456789…89abcdef") && jobStatusText.includes("Next:") && jobStatusText.toLowerCase().includes("job offers"), jobStatusText);
 
     // An unregistered skill is never sent to create_job. The form
     // offers a one tap DAO request instead, and the job stays unposted.
@@ -695,9 +758,9 @@ async function main() {
       ["merit-basics", "welding", "torch-work", "gate-welding", "repair-welding"].every((s) => t.includes(s)));
     check("badges held section shows level explanations", t.includes("Level 1") && t.includes("Level 2"));
     check("badges earnable section lists coding from an open job", t.includes("coding") && lt.includes("build a landing page") && t.includes("Not held yet"));
-    check("badges list_jobs call passes explicit pagination",
+    check("badges list_jobs call passes explicit pagination with string from_index",
       rpcCalls.filter((c) => c.method === "list_jobs").length > 0 &&
-      rpcCalls.filter((c) => c.method === "list_jobs").every((c) => c.args.from_index === 0 && c.args.limit === 50));
+      rpcCalls.filter((c) => c.method === "list_jobs").every((c) => c.args.from_index === "0" && c.args.limit === 50));
     check("badges page nav and tab bar link all five pages",
       (await page.$$eval("header.top nav a", (els) => els.map((a) => a.getAttribute("href")))).length === 5 &&
       (await page.$$eval("#tabBar a", (els) => els.map((a) => a.getAttribute("href")))).length === 6);
@@ -709,7 +772,9 @@ async function main() {
     check("dao lists both proposals", t.includes("PROPOSAL 0") && t.includes("PROPOSAL 1"));
     check("dao shows proposed outcome and criteria",
       t.includes("Refund the poster") && t.includes("Pay in full") && t.includes("two coats with no drips"));
-    check("dao shows both sides evidence hashes", t.includes(POSTER_EVIDENCE) && t.includes(WORKER_EVIDENCE));
+    const posterShort = POSTER_EVIDENCE.slice(0, 10) + "…" + POSTER_EVIDENCE.slice(-8);
+    const workerShort = WORKER_EVIDENCE.slice(0, 10) + "…" + WORKER_EVIDENCE.slice(-8);
+    check("dao shows both sides evidence hashes", t.includes(posterShort) && t.includes(workerShort));
     // View evidence shows the content inline on the page. A raw
     // data: link opens a blank tab on some phones, so the page must
     // not link out to the raw reference at all.
@@ -871,7 +936,7 @@ async function main() {
     await emptyPage.goto(BASE + "/jobs-offers.html", { waitUntil: "networkidle0" });
     await sleep(900);
     et = await emptyPage.evaluate(() => document.body.innerText);
-    check("empty state offers is finished with a next action", et.includes("No open offers right now") && et.includes("Create job"));
+    check("empty state offers is finished with a next action", et.includes("No open offers right now") && et.includes("Post job"));
     await emptyPage.goto(BASE + "/jobs-completed.html", { waitUntil: "networkidle0" });
     await sleep(900);
     et = await emptyPage.evaluate(() => document.body.innerText);

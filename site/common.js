@@ -8,17 +8,20 @@ function el(id) { return document.getElementById(id); }
 function escapeHtml(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
-// Merit token id allowlist: lowercase letters, digits, dots and
-// underscores only, 1-64 chars, starting with a letter or digit.
-// No spaces: a space is the most common mistake, so it gets its own
-// message naming the fix.
+// Merit token id allowlist, matching the contract exactly: a token
+// id doubles as a sub-account label, so it must be 1-32 chars,
+// lowercase letters, digits and hyphens only, never starting or
+// ending with a hyphen. Dots and underscores are NOT allowed: the
+// contract rejects them, so the site must too, or a mint the form
+// accepted would fail onchain.
 function validateTokenId(id) {
   const s = String(id || "");
   if (!s) return "The token id is empty.";
-  if (s.length > 64) return "The token id must be 64 characters or fewer.";
-  if (s.includes(" ")) return "The token id cannot contain spaces. Use lowercase letters, digits, dots and underscores only, for example ai-agent instead of ai agent.";
-  if (!/^[a-z0-9][a-z0-9._-]*$/.test(s)) {
-    return "The token id can only use lowercase letters, digits, dots and underscores, with no spaces, and must start with a letter or digit.";
+  if (s.length > 32) return "The token id must be 32 characters or fewer.";
+  if (s.includes(" ")) return "The token id cannot contain spaces. Use lowercase letters, digits and hyphens only, for example ai-agent instead of ai agent.";
+  if (s.startsWith("-") || s.endsWith("-")) return "The token id cannot start or end with a hyphen.";
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(s)) {
+    return "The token id can only use lowercase letters, digits and hyphens, with no spaces, and must start with a letter or digit.";
   }
   return "";
 }
@@ -132,6 +135,94 @@ function reportFailure(err) {
 function nearLink(txHash) {
   return "https://testnet.nearblocks.io/txns/" + txHash;
 }
+// Pull the transaction hash out of a wallet call result. The wallet
+// resolves in page with the outcome when it does not redirect, and
+// the hash sits in one of a few shapes depending on the wallet, so
+// every shape is tried. Returns the hash string, or null.
+function txHashFromWalletResult(res) {
+  try {
+    if (!res) return null;
+    if (typeof res === "string" && res.length >= 32) return res;
+    // The wallet returns the hash in a transactionHashes array,
+    // both from sendTransaction and on the redirect back.
+    if (Array.isArray(res.transactionHashes) && res.transactionHashes.length && typeof res.transactionHashes[0] === "string" && res.transactionHashes[0]) return res.transactionHashes[0];
+    const tx = res.transaction || res.tx || null;
+    if (tx && typeof tx.hash === "string" && tx.hash) return tx.hash;
+    if (typeof res.transactionHash === "string" && res.transactionHash) return res.transactionHash;
+    if (typeof res.hash === "string" && res.hash) return res.hash;
+    if (Array.isArray(res) && res.length) return txHashFromWalletResult(res[0]);
+    if (res.outcome && res.outcome.transaction) return txHashFromWalletResult(res.outcome);
+  } catch (_) { /* no hash in this shape */ }
+  return null;
+}
+// Shorten a hash for display: first 10 and last 8 characters.
+function shortHash(hash) {
+  const h = String(hash || "");
+  if (h.length <= 20) return h;
+  return h.slice(0, 10) + "\u2026" + h.slice(-8);
+}
+// One line for a finished transaction: the message, the hash as a
+// shortened Nearblocks link with a copy button, and a short next
+// step line. The link opens in a new tab. Returns HTML for a status
+// element; use setTxStatus to put it on the page.
+function txStatusHtml(msg, hash, nextStep) {
+  let h = escapeHtml(msg || "");
+  if (hash) {
+    h += " Transaction <a href=\"" + escapeHtml(nearLink(hash)) + "\" target=\"_blank\" rel=\"noopener\">" + escapeHtml(shortHash(hash)) + "</a>" +
+      " <button type=\"button\" class=\"btn secondary copy-hash-btn\" data-copy-hash=\"" + escapeHtml(String(hash)) + "\">Copy</button>";
+  }
+  if (nextStep) h += "<br><span class=\"tx-next\">Next: " + escapeHtml(nextStep) + "</span>";
+  return h;
+}
+// Show a finished transaction in the page status line, with hash
+// link and next step. Falls back to plain text when there is no
+// status element or no hash.
+function setTxStatus(msg, hash, nextStep) {
+  const s = el("pageStatus");
+  if (!s) return;
+  s.innerHTML = txStatusHtml(msg, hash, nextStep);
+}
+// Copy buttons for hashes and ids: one delegated handler for the
+// whole page, so buttons added by re-rendered cards work too.
+document.addEventListener("click", async (ev) => {
+  const btn = ev.target && ev.target.closest ? ev.target.closest("[data-copy-hash]") : null;
+  if (!btn) return;
+  const hash = btn.getAttribute("data-copy-hash") || "";
+  if (!hash) return;
+  let ok = false;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(hash);
+      ok = true;
+    }
+  } catch (_) { /* fall through to the textarea fallback */ }
+  if (!ok) {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = hash;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+    } catch (_) { ok = false; }
+  }
+  const prev = btn.textContent;
+  btn.textContent = ok ? "Copied" : "Copy failed";
+  setTimeout(() => { btn.textContent = prev; }, 1500);
+});
+
+// Shorten a long onchain hash for display: first 12 and last 8
+// characters, with a copy button for the full hash. Used for
+// evidence hashes, which must not wrap mid string, so the full
+// hash is copied, not read off a broken line.
+function evidenceHashHtml(hash) {
+  const h = String(hash || "");
+  if (!h) return "";
+  return "<span class=\"hash-short\" title=\"" + escapeHtml(h) + "\">" + escapeHtml(shortHash(h)) + "</span>" +
+    " <button type=\"button\" class=\"btn secondary copy-hash-btn\" data-copy-hash=\"" + escapeHtml(h) + "\">Copy</button>";
+}
 
 // Confirm a transaction onchain before claiming success. Returns
 // "confirmed", "failed", or "unknown" (not yet visible onchain).
@@ -156,6 +247,16 @@ async function checkTxStatus(txHash, accountId) {
     } catch (e) { /* try the next endpoint */ }
   }
   return "unknown";
+}
+
+// Race a promise against a timeout. The timeout rejects with a
+// plain message, so a slow chain read shows a retry instead of
+// hanging the page on "Loading…".
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error((label || "The request") + " timed out after " + Math.round(ms / 1000) + " seconds. The chain is slow to answer.")), ms)),
+  ]);
 }
 
 async function fetchWithTimeout(url, opts) {
@@ -238,6 +339,10 @@ function walletChanged() {
 }
 async function initWallet() {
   if (typeof window === "undefined") return;
+  // Render the known account in the header at once, before the
+  // async restore finishes, so the button does not flash "Connect
+  // wallet" on every navigation and reload.
+  refreshWalletBtn();
   let skipRestore = false;
   try { skipRestore = localStorage.getItem("merit-wallet-disconnected") === "1" || sessionStorage.getItem("merit-wallet-disconnected") === "1"; } catch (_) { /* storage unavailable */ }
   if (!skipRestore) {
@@ -263,19 +368,11 @@ async function initWallet() {
         }
       }
       if (state === "confirmed") {
-        const s = el("pageStatus");
-        if (s) {
-          s.innerHTML = "Transaction <a href=\"" + escapeHtml(nearLink(hashes[0])) + "\" target=\"_blank\" rel=\"noopener\">" +
-            escapeHtml(hashes[0]) + "</a> is confirmed onchain.";
-        }
+        setTxStatus("Transaction is confirmed onchain.", hashes[0], "Check it on Nearblocks, or carry on with the next step on this page.");
       } else if (state === "failed") {
         reportFailure("Smart contract panicked: the transaction failed onchain");
       } else {
-        const s = el("pageStatus");
-        if (s) {
-          s.innerHTML = "Transaction <a href=\"" + escapeHtml(nearLink(hashes[0])) + "\" target=\"_blank\" rel=\"noopener\">" +
-            escapeHtml(hashes[0]) + "</a> was sent. Confirmation not verified yet. Check it on Nearblocks.";
-        }
+        setTxStatus("Transaction was sent. Confirmation not verified yet.", hashes[0], "Check it on Nearblocks.");
       }
       window.history.replaceState({}, "", window.location.pathname + window.location.search + window.location.hash);
     }
@@ -283,13 +380,34 @@ async function initWallet() {
   refreshWalletBtn();
   walletChanged();
 }
+// The account id the wallet last connected with, kept in storage so
+// the header button can show it at once on the next page load,
+// before the async wallet restore finishes. Cleared on sign out.
+function persistedWalletAccount() {
+  try {
+    if (localStorage.getItem("merit-wallet-disconnected") === "1" || sessionStorage.getItem("merit-wallet-disconnected") === "1") return null;
+    return localStorage.getItem("merit-wallet-account") || null;
+  } catch (_) { return null; }
+}
+function persistWalletAccount(id) {
+  try {
+    if (id) localStorage.setItem("merit-wallet-account", id);
+    localStorage.removeItem("merit-wallet-disconnected");
+    sessionStorage.removeItem("merit-wallet-disconnected");
+  } catch (_) { /* storage unavailable */ }
+}
+function clearPersistedWalletAccount() {
+  try { localStorage.removeItem("merit-wallet-account"); } catch (_) { /* storage unavailable */ }
+}
 function refreshWalletBtn() {
   const btn = el("connectBtn");
   if (!btn) return;
   let libOk = true;
   try { fastnear(); } catch (_) { libOk = false; }
   if (!libOk) { btn.textContent = "Wallet unavailable"; btn.disabled = true; return; }
-  const id = walletAccountId;
+  // Show the persisted account at once on load, before the async
+  // restore finishes, so the button does not flash "Connect wallet".
+  const id = walletAccountId || persistedWalletAccount();
   btn.textContent = id ? id + " (sign out)" : "Connect wallet";
   if (btn.title !== undefined) btn.title = id ? "Tap to sign out" : "";
   btn.disabled = false;
@@ -297,6 +415,7 @@ function refreshWalletBtn() {
 async function disconnectWallet() {
   try { localStorage.setItem("merit-wallet-disconnected", "1"); } catch (_) { /* storage unavailable */ }
   try { sessionStorage.setItem("merit-wallet-disconnected", "1"); } catch (_) { /* storage unavailable */ }
+  clearPersistedWalletAccount();
   try {
     const nw = fastnear();
     try { await nw.disconnect({ network: window.NETWORK }); } catch (_) { /* wallet already signed out */ }
@@ -326,6 +445,7 @@ async function toggleWallet() {
     const id = (result && typeof result.accountId === "string" && result.accountId) || currentAccountId(nw);
     if (typeof id !== "string" || !id) { pageStatus("Could not determine the connected account. Try again."); return; }
     walletAccountId = id;
+    persistWalletAccount(id);
     refreshWalletBtn();
     pageStatus("");
     walletChanged();

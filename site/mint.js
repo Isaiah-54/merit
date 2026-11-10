@@ -17,8 +17,8 @@ function showMintResult(tokenId, title) {
     "<div class=\"mc-label\">Merit credential \u2022 NEAR testnet</div>" +
     "<div class=\"mc-id mono\">" + escapeHtml(tokenId) + "</div>" +
     (displayTitle && displayTitle !== tokenId ? "<div class=\"mc-meta\">" + escapeHtml(displayTitle) + "</div>" : "") +
-    (walletAccountId ? "<div class=\"mc-meta\">Owner <span class=\"mono\">" + escapeHtml(walletAccountId) + "</span></div>" : "") +
-    "<div class=\"mc-meta\">Own sub-account <span class=\"mono\">" + escapeHtml(subAccount) + "</span>, where job payments land</div>" +
+    (walletAccountId ? "<div class=\"mc-meta\">Owner: <span class=\"mono\">" + escapeHtml(walletAccountId) + "</span></div>" : "") +
+    "<div class=\"mc-meta\">Own sub-account: <span class=\"mono\">" + escapeHtml(subAccount) + "</span>, where job payments land</div>" +
     "<p style=\"margin:10px 0 0\"><span class=\"chip open\">Blank, no stamps yet, level 0</span></p>" +
     "</div>" +
     levelBadgeHtml(0, [], ", blank, ready to earn stamps") +
@@ -26,7 +26,7 @@ function showMintResult(tokenId, title) {
     "<h2>What is next</h2>" +
     "<div class=\"next-step\"><div class=\"next-step-card\">" +
     "<span class=\"next-step-num\" aria-hidden=\"true\">2</span>" +
-    "<div class=\"next-step-body\"><div class=\"next-step-label\">Next step: earn your first stamp</div>" +
+    "<div class=\"next-step-body\"><div class=\"next-step-label\">Next step: pass the demo test</div>" +
     "<p class=\"next-step-text\">Pass the demo test to earn your first stamp and open gated jobs.</p></div>" +
     "<a class=\"btn\" href=\"merit.html?id=" + encodeURIComponent(tokenId) + "#testSection\">Pass the demo test</a>" +
     "</div></div>" +
@@ -69,12 +69,13 @@ document.getElementById("mintPageForm").addEventListener("submit", async (ev) =>
       sessionStorage.setItem("merit-pending-mint", tokenId);
       sessionStorage.setItem("merit-pending-mint-title", title);
     } catch (_) { /* storage unavailable */ }
-    await walletCall(contractId(), call.method, call.args, call.depositYocto, call.gas);
+    const res = await walletCall(contractId(), call.method, call.args, call.depositYocto, call.gas);
     try {
       sessionStorage.removeItem("merit-pending-mint");
       sessionStorage.removeItem("merit-pending-mint-title");
     } catch (_) { /* storage unavailable */ }
-    pageStatus("Mint sent. Your new Merit is below. It will open once the chain confirms it.");
+    const hash = txHashFromWalletResult(res);
+    setTxStatus("Mint sent. Your new Merit is below. It will open once the chain confirms it.", hash, "Pass the demo test to earn your first stamp and open gated jobs.");
     showMintResult(tokenId, title);
   } catch (e) {
     reportFailure(e);

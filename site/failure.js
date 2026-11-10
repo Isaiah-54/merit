@@ -62,7 +62,7 @@ function classifyFailure(input) {
     ["kit not in merit", "Rejected. That kit item is not inside this Merit. No money moved."],
     ["already lent", "Rejected. This Merit is already lent out. Revoke the current lend first. No money moved."],
     ["lend expired", "Rejected. The lend has expired. No money moved."],
-    ["invalid token id", "Rejected. The token id is not valid. Use lowercase letters, digits and dots only. No money moved."],
+    ["invalid token id", "Rejected. The token id is not valid. Use lowercase letters, digits and hyphens only, 1 to 32 characters, not starting or ending with a hyphen. No money moved."],
   ];
   for (const [needle, text] of rules) {
     if (lower.indexOf(needle) >= 0) {

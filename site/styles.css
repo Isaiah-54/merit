@@ -50,7 +50,7 @@ header.top .brand .brand-mark { width: 28px; height: 28px; flex: none; }
 header.top nav a { margin-left: 16px; color: var(--muted); text-decoration: none; }
 header.top nav a:hover { color: var(--text); }
 main { max-width: 960px; margin: 0 auto; padding: 24px 20px 80px; }
-h1 { font-size: 40px; line-height: 1.1; letter-spacing: -0.02em; margin: 8px 0 12px; }
+h1 { font-size: 40px; line-height: 1.1; letter-spacing: -0.02em; margin: 8px 0 12px; overflow-wrap: break-word; }
 h2 { font-size: 22px; margin: 36px 0 10px; }
 h3 { font-size: 17px; margin: 18px 0 8px; }
 p.lede { font-size: 18px; color: var(--muted); max-width: 640px; }
@@ -63,6 +63,22 @@ p.lede { font-size: 18px; color: var(--muted); max-width: 640px; }
 }
 .panel h3 { margin-top: 0; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+/* Five things a Merit does: five across on wide screens, 3 + 2 on
+   narrow ones, so the fifth card never wraps alone. Equal heights
+   keep the row level. */
+.grid.five-grid { grid-template-columns: repeat(5, 1fr); }
+.grid.five-grid .card { display: flex; flex-direction: column; }
+@media (max-width: 760px) {
+  .grid.five-grid { grid-template-columns: repeat(2, 1fr); }
+  .grid.five-grid .card:last-child { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) { h1 { font-size: 32px; } }
+/* Long ids and hashes (account ids, evidence hashes) wrap instead
+   of overflowing a narrow phone screen. */
+.mono { overflow-wrap: anywhere; }
+/* The header account button truncates a long account id with an
+   ellipsis instead of pushing the header wider than the screen. */
+#connectBtn { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -482,8 +498,8 @@ footer a:hover { color: var(--accent2); }
 .job-search-row input { flex: 1; min-width: 0; }
 .job-search-row .btn { flex: none; white-space: nowrap; }
 .job-search-panel .hint { margin: 8px 0 0; }
-.job-search-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
-.job-search-chip { appearance: none; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); }
+.job-search-chips { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.job-search-chip { appearance: none; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); }
 .job-search-chip:hover { border-color: var(--accent); color: var(--accent); }
 .job-search-chip.active { background: var(--accent); border-color: var(--accent); color: #06130b; }
 .job-search-status { margin: 10px 0 0; font-size: 14px; font-weight: 600; color: var(--muted); min-height: 1.3em; }
@@ -510,6 +526,7 @@ footer a:hover { color: var(--accent2); }
 .journey-num { position: relative; z-index: 1; width: 32px; height: 32px; border-radius: 50%; background: var(--panel2); border: 2px solid var(--accent); color: var(--accent); font-weight: 800; font-size: 14px; display: flex; align-items: center; justify-content: center; }
 .journey-step:first-child .journey-num { background: var(--accent); color: #06130b; }
 .journey-label { font-size: 12px; font-weight: 700; line-height: 1.25; color: var(--text); }
+.journey-sub { font-size: 11px; line-height: 1.3; color: var(--muted); }
 @media (max-width: 640px) {
   .journey { flex-wrap: wrap; gap: 10px 4px; }
   .journey-step { flex: 1 1 30%; }
@@ -558,4 +575,17 @@ the evidence hash. Long text wraps and scrolls instead of
 overflowing the card on a phone. */
 .evidenceContent { margin: 6px 0 10px; }
 .evidence-text { white-space: pre-wrap; word-break: break-word; background: var(--panel2); border: 1px solid #2a3a52; border-radius: 10px; padding: 11px 14px; font-size: 14px; max-height: 260px; overflow: auto; margin: 0; }
+/* Transaction hash line: the shortened hash links to Nearblocks,
+   the Copy button takes the full hash, and the next step sits below. */
+.tx-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 6px 0 0; }
+.tx-hash-link { font-family: var(--mono); font-size: 13px; color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }
+.tx-hash-link:hover { text-decoration: underline; }
+.hash-short { font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+.copy-hash-btn { appearance: none; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel2); color: var(--text); flex: none; }
+.copy-hash-btn:hover { border-color: var(--accent); color: var(--accent); }
+.tx-next { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+/* Withdraw amount and Max button sit on one row. */
+.withdraw-row { display: flex; gap: 8px; align-items: stretch; }
+.withdraw-row input { flex: 1; min-width: 0; }
+.withdraw-row .btn { flex: none; white-space: nowrap; }
 .gate-need b { color: var(--accent); }

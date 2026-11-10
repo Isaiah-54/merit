@@ -31,7 +31,7 @@
   </div>
   <div class="panel" style="margin-bottom:14px">The gate is checked onchain before any job is taken. A blank Merit, one with no stamps, is refused for every gated job here: <strong>no required stamp, no entry</strong>, and no money moves.</div>
   <div class="panel job-search-panel">
-    <label for="jobSearchInput">Search open jobs</label>
+    <label for="jobSearchInput"><strong>Search open jobs</strong> <span class="muted small">type a word from the title, the type, or the poster</span></label>
     <div class="job-search-row">
       <input id="jobSearchInput" type="search" placeholder="Search by skill or title, e.g. welding, torch-work, gate…" autocomplete="off" aria-describedby="jobSearchStatus">
       <button type="button" class="btn secondary" id="jobSearchClear" hidden>Clear</button>
@@ -50,7 +50,7 @@
     </div>
     <p class="job-search-status" id="jobSearchStatus" role="status" aria-live="polite"></p>
   </div>
-  <div id="jobList"><p class="muted loading">Loading job offers from the chain…</p></div>
+  <div id="jobList"><p class="muted loading">Loading job offers from the chain. This can take up to 30 seconds. If nothing appears, use Try again below.</p></div>
   <div id="jobProgressList"></div>
 </main>
 <footer>

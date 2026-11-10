@@ -41,7 +41,10 @@
     wallet. The retained part stays in the Merit account.</p>
     <form id="withdrawForm">
       <label for="withdrawAmount">Amount in NEAR</label>
-      <input id="withdrawAmount" type="text" placeholder="1" autocomplete="off">
+      <div class="withdraw-row">
+        <input id="withdrawAmount" type="text" placeholder="0.000" autocomplete="off">
+        <button type="button" class="btn secondary" id="withdrawMaxBtn">Max</button>
+      </div>
       <button id="withdrawBtn" type="submit">Withdraw</button>
     </form>
   </div>
@@ -50,7 +53,7 @@
   <div id="kitList"><p class="muted loading">Loading kit…</p></div>
   <div class="panel" id="buyKitSection" style="display:none">
     <h3>Buy kit with retained</h3>
-    <p class="muted small">The retained balance is the 5% this Merit kept from job payments. Spend it here on kit for this Merit. Each kit costs <strong><span id="buyKitPrice">0.100 NEAR</span></strong>. Retained balance: <strong><span id="buyKitRetained">0.000 NEAR</span></strong>. The kit is a record held inside this Merit, not a separate NFT, and the job gate is the stamp, not the kit.</p>
+    <p class="muted small">The retained balance is the Merit's working royalty: 5% of every job payment its stamps unlock, kept in its own account. It is the Merit's own earnings from working. You can spend some of it here on kit for this Merit. Each kit costs <strong><span id="buyKitPrice">0.100 NEAR</span></strong>. Retained balance: <strong><span id="buyKitRetained">0.000 NEAR</span></strong>. The kit is a record held inside this Merit, not a separate NFT, and the job gate is the stamp, not the kit.</p>
     <form id="buyKitForm">
       <label for="buyKitId">Kit id</label>
       <input id="buyKitId" type="text" placeholder="hammer2" autocomplete="off">

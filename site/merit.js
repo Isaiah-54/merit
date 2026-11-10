@@ -4,11 +4,26 @@
 // to every other Merit.
 const params = new URLSearchParams(window.location.search);
 let TOKEN_ID = params.get("id") || "";
+// Whether the id came from the URL. When it did not (the bottom
+// nav "Merit" link goes to merit.html with no id), the default is
+// re-derived on every load from the current wallet: the connected
+// wallet's own first Merit, else the demo merit-2. Without this,
+// the first load picks merit-2 before the wallet restores, and the
+// re-render after the restore keeps merit-2, so a signed-in user
+// sees another Merit's kit thinking it is their own.
+const ID_FROM_URL = Boolean(params.get("id"));
 let meritData = null;
 let meritTokensCache = [];
+// Monotonic load sequence: a newer loadMerit call makes an older
+// one stale, so a slow earlier load cannot overwrite the newer
+// Merit's render after the wallet restores.
+let loadSeq = 0;
 // Owner of the Merit currently shown. Set when the Merit loads; the
 // withdraw actions check it so a non-owner never gets a wallet prompt.
 let MERIT_OWNER = null;
+// The withdrawable balance as last read, so the withdraw form can
+// default to it and the Max button can fill it.
+let currentWithdrawable = 0n;
 
 function meritAccountId() {
   return TOKEN_ID + "." + window.CONTRACT_ID;
@@ -26,10 +41,16 @@ function dateInputToNs(dateStr) {
 }
 
 async function loadMerit() {
+  const seq = ++loadSeq;
   const picker = el("meritPicker");
   try { meritTokensCache = await view("nft_tokens", { from_index: "0", limit: 50 }) || []; }
   catch (_) { meritTokensCache = []; }
-  if (!TOKEN_ID) {
+  if (seq !== loadSeq) return;
+  // No id in the URL: re-derive the default on every load from the
+  // wallet as it stands now, so a restore that lands after the
+  // first load moves the page to the visitor's own Merit instead
+  // of leaving it stuck on the demo. An id in the URL is kept.
+  if (!ID_FROM_URL) {
     if (!meritTokensCache.length) {
       el("meritTitle").textContent = "Merit";
       if (picker) picker.innerHTML = "";
@@ -61,6 +82,7 @@ async function loadMerit() {
   document.getElementById("meritTitle").textContent = TOKEN_ID;
   try {
     const m = await view("get_merit", { token_id: TOKEN_ID });
+    if (seq !== loadSeq) return;
     meritData = m;
     MERIT_OWNER = m.owner_id || null;
     const locked = !!m.locked;
@@ -76,12 +98,12 @@ async function loadMerit() {
       "<div class=\"mc-label\">Merit credential \u2022 NEAR testnet</div>" +
       "<div class=\"mc-id mono\">" + escapeHtml(TOKEN_ID) + "</div>" +
       (cardTitle !== TOKEN_ID ? "<div class=\"mc-meta\">" + escapeHtml(cardTitle) + "</div>" : "") +
-      "<div class=\"mc-meta\">Owner <span class=\"mono\">" + escapeHtml(m.owner_id || "Not recorded") + "</span></div>" +
-      "<div class=\"mc-meta\">Own sub-account <span class=\"mono\">" + escapeHtml(meritAccountId()) + "</span>, where job payments land</div>" +
-      "<div class=\"mc-meta\">" + escapeHtml(tier.label) + " tier \u2022 " + stamps.length + (stamps.length === 1 ? " stamp" : " stamps") + " earned. The seal follows the level: every Merit at this level carries the same seal, whatever its skills</div>" +
+      "<div class=\"mc-meta\">Owner: <span class=\"mono\">" + escapeHtml(m.owner_id || "Not recorded") + "</span></div>" +
+      "<div class=\"mc-meta\">Own sub-account: <span class=\"mono\">" + escapeHtml(meritAccountId()) + "</span>, where job payments land</div>" +
+      "<div class=\"mc-meta\">The seal follows the level: every Merit at this level carries the same seal, whatever its skills</div>" +
       "<p style=\"margin:10px 0 0\"><span class=\"tier-chip tier-" + tier.key + "\">" + escapeHtml(tier.label) + " tier</span> &nbsp;<span class=\"chip " + (locked ? "locked" : "open") + "\">" + (locked ? "Locked, stamped, cannot be sold" : "Open, not stamped yet") + "</span></p>" +
       "</div>" +
-      levelBadgeHtml(level, stamps, ", computed onchain from its stamps") +
+      levelBadgeHtml(level, null, ", computed onchain from its stamps") +
       "</div></div>";
     renderNextStep(m);
 
@@ -104,14 +126,16 @@ async function loadMerit() {
 
     const withdrawable = BigInt(m.balance_withdrawable || "0");
     const retained = BigInt(m.balance_retained || "0");
+    currentWithdrawable = withdrawable;
     let subBalText = "Not readable";
     let mintDepositText = null;
     try {
       const bal = await rpcAccountBalance(meritAccountId());
       subBalText = fmtYocto(bal) + " NEAR";
       const deposit = bal - withdrawable - retained;
-      if (deposit > 0n) mintDepositText = fmtYocto(deposit) + " NEAR";
+      if (deposit > 0n) mintDepositText = fmtYocto(deposit);
     } catch (_) { /* leave as Not readable */ }
+    if (seq !== loadSeq) return;
     // A withdraw sent in this session: show a clear confirmation
     // only when the wallet returned with a transaction hash. A
     // rejected wallet call leaves no hash, so no false confirmation.
@@ -127,10 +151,22 @@ async function loadMerit() {
       }
     } catch (_) { /* storage unavailable */ }
     const isOwner = Boolean(walletAccountId) && Boolean(m.owner_id) && walletAccountId === m.owner_id;
+    // Default the withdraw amount to the withdrawable balance, so
+    // the form never suggests 1 NEAR when there is nothing to take.
+    const wInput = el("withdrawAmount");
+    if (wInput && isOwner) wInput.value = fmtYocto(withdrawable);
     let panelHtml = confirmHtml +
       "<div class=\"balance-hero\"><div class=\"balance-hero-label\">Sub-account balance</div>" +
       "<div class=\"balance-hero-num\">" + escapeHtml(subBalText) + "</div>" +
       "<div class=\"balance-hero-sub\">Your Merit's own NEAR account: <span class=\"mono\">" + escapeHtml(meritAccountId()) + "</span></div></div>";
+    // A fresh Merit holds only its mint deposit. Say so plainly
+    // under the hero, so the 0.05 NEAR is not mistaken for job pay:
+    // 0.05 NEAR of the 0.1 NEAR mint went into this sub-account as
+    // its storage deposit, and the other 0.05 NEAR paid for the NFT
+    // record itself.
+    if (withdrawable === 0n && retained === 0n && mintDepositText) {
+      panelHtml += "<p class=\"muted small\" style=\"text-align:center;margin:0 0 4px\">This 0.05 NEAR is the storage deposit from the 0.1 NEAR mint. The other 0.05 NEAR paid for the NFT record itself, so the sub-account starts at 0.05 NEAR.</p>";
+    }
     if (withdrawable > 0n) {
       if (isOwner) {
         panelHtml += "<p><button type=\"button\" class=\"btn withdraw-hero-btn\" id=\"withdrawAllBtn\">Withdraw " + escapeHtml(fmtYocto(m.balance_withdrawable)) + " NEAR to your wallet</button></p>";
@@ -144,7 +180,7 @@ async function loadMerit() {
     if (mintDepositText) {
       panelHtml += "<div class=\"kv\"><span>Mint deposit</span><b>" + escapeHtml(mintDepositText) + " NEAR</b></div>";
     }
-    panelHtml += "<p class=\"muted small\" style=\"margin-bottom:0\">Job payments split 95% withdrawable / 5% retained, enforced by the contract. The retained part is what this Merit earned by working: every time its stamps unlock a job, the Merit keeps 5% of that job's pay. It is not a resale cut. A stamped Merit cannot be sold, so the Merit earns by doing the work, not by changing hands. The retained part can now be spent on kit for this Merit, 0.1 NEAR per kit, from the Buy kit section below. The mint deposit is the 0.05 NEAR that went into the sub-account when the Merit was minted; it is not part of the job split, which is why the three lines add up to the balance.</p>";
+    panelHtml += "<p class=\"muted small\" style=\"margin-bottom:0\">Job payments split 95% withdrawable / 5% retained, enforced by the contract. The retained part is the Merit's working royalty: every time its stamps unlock a job, the Merit earns 5% of that job's pay and keeps it in its own account. It is the Merit's own earnings from working, not a fee taken away and not a resale cut. A stamped Merit cannot be sold, so the Merit earns by doing the work, not by changing hands. Some of the retained can be spent on kit for this Merit, 0.1 NEAR per kit, from the Buy kit section below. The mint deposit is the 0.05 NEAR that went into the sub-account when the Merit was minted; it is not part of the job split, which is why the three lines add up to the balance.</p>";
     el("balancePanel").innerHTML = panelHtml;
     const wab = el("withdrawAllBtn");
     if (wab) wab.addEventListener("click", () => withdrawAll(withdrawable, wab));
@@ -185,9 +221,9 @@ async function loadMerit() {
     if (stampNote) stampNote.style.display = walletIsIssuer ? "none" : "";
 
     const kit = m.kit || [];
-    const kitIntro = "<p class=\"muted small\" style=\"margin-top:0\">The tools this Merit carries. Each tool is a record held inside the Merit, tied to a credential the Merit holds, so the holder always has the right tool for the work its stamps unlock.</p>";
+    const kitIntro = "<p class=\"muted small\" style=\"margin-top:0\">The tools " + escapeHtml(TOKEN_ID) + " carries. Each tool is a record held inside this Merit, tied to a credential the Merit holds, so the holder always has the right tool for the work its stamps unlock.</p>";
     if (kit.length === 0) {
-      el("kitList").innerHTML = kitIntro + "<p class=\"muted\">No kit inside this Merit yet. Deposit a tool below and it shows here by name.</p>";
+      el("kitList").innerHTML = kitIntro + "<p class=\"muted\">No kit inside " + escapeHtml(TOKEN_ID) + " yet. Deposit a tool below and it shows here by name.</p>";
     } else {
       const items = [];
       for (const kitId of kit) {
@@ -198,6 +234,7 @@ async function loadMerit() {
         } catch (_) { /* show the id when the kit read fails */ }
         items.push("<div class=\"card\"><div class=\"label\">Tool inside this Merit</div><p><strong>" + escapeHtml(name) + "</strong></p><p class=\"muted small\">" + escapeHtml(kitId) + " · held inside this Merit</p></div>");
       }
+      if (seq !== loadSeq) return;
       el("kitList").innerHTML = kitIntro + "<div class=\"grid\">" + items.join("") + "</div>" +
         "<p class=\"muted small\">The job gate is the stamp, not the kit. A tool shows what the credential certifies the holder to use; removing a tool takes it out of the Merit but does not close a job the stamps already unlock.</p>";
     }
@@ -241,12 +278,12 @@ function renderNextStep(m) {
   let action = "";
   if (withdrawable > 0n && isOwner) {
     num = "6";
-    label = "Next step: get paid out";
+    label = "Next step: withdraw";
     text = "Your Merit earned " + fmtYocto(m.balance_withdrawable) + " NEAR. Withdraw it to your wallet.";
     action = "<button type=\"button\" class=\"btn\" id=\"nextStepBtn\">Withdraw " + escapeHtml(fmtYocto(m.balance_withdrawable)) + " NEAR</button>";
   } else if (stamps.length === 0) {
     num = "2";
-    label = "Next step: earn your first stamp";
+    label = "Next step: pass the demo test";
     text = "This Merit is blank. Pass the demo test to earn your first stamp and open gated jobs.";
     action = "<button type=\"button\" class=\"btn\" id=\"nextStepBtn\">Pass the demo test to earn your first stamp</button>";
   } else {
@@ -284,21 +321,24 @@ async function withdrawAll(amount, btn) {
   if (MERIT_OWNER && walletAccountId !== MERIT_OWNER) { pageStatus("Only the owner of this Merit can withdraw."); return; }
   try { sessionStorage.setItem("merit-withdraw-confirm", fmtYocto(amount)); } catch (_) { /* storage unavailable */ }
   await sendWithPending(btn, "Sending withdraw. Confirm in your wallet.",
-    "withdraw", { token_id: TOKEN_ID, amount: amount.toString() }, "0");
+    "withdraw", { token_id: TOKEN_ID, amount: amount.toString() }, "0", undefined, undefined, "The NEAR is in your wallet once the chain confirms it.");
 }
 
 function needWallet() {
   if (!walletAccountId) { pageStatus("Connect your wallet first."); return false; }
   return true;
 }
-async function sendWithPending(btn, statusText, method, args, depositYocto, gas, statusEl) {
+async function sendWithPending(btn, statusText, method, args, depositYocto, gas, statusEl, nextStep) {
   btn.disabled = true;
   const local = statusEl ? el(statusEl) : null;
   const showStatus = (msg) => { if (local) local.textContent = msg; pageStatus(msg); };
   showStatus(statusText);
   try {
-    await walletCall(contractId(), method, args, depositYocto || "0", gas);
-    showStatus("Sent. It will show here once the chain confirms it.");
+    const res = await walletCall(contractId(), method, args, depositYocto || "0", gas);
+    const hash = txHashFromWalletResult(res);
+    const msg = "Sent. It will show here once the chain confirms it.";
+    if (local) local.innerHTML = txStatusHtml(msg, hash, nextStep);
+    setTxStatus(msg, hash, nextStep);
     await loadMerit();
     return true;
   } catch (e) {
@@ -318,7 +358,13 @@ document.getElementById("withdrawForm").addEventListener("submit", async (ev) =>
   if (amount <= 0n) { pageStatus("Enter an amount above zero."); return; }
   try { sessionStorage.setItem("merit-withdraw-confirm", fmtYocto(amount)); } catch (_) { /* storage unavailable */ }
   await sendWithPending(el("withdrawBtn"), "Sending withdraw. Confirm in your wallet.",
-    "withdraw", { token_id: TOKEN_ID, amount: amount.toString() }, "0");
+    "withdraw", { token_id: TOKEN_ID, amount: amount.toString() }, "0", undefined, undefined, "The NEAR is in your wallet once the chain confirms it.");
+});
+
+// Max fills the withdraw amount with the whole withdrawable balance.
+document.getElementById("withdrawMaxBtn").addEventListener("click", () => {
+  const input = el("withdrawAmount");
+  if (input) input.value = fmtYocto(currentWithdrawable);
 });
 
 document.getElementById("depositKitForm").addEventListener("submit", async (ev) => {
@@ -327,7 +373,7 @@ document.getElementById("depositKitForm").addEventListener("submit", async (ev) 
   const kitId = el("depositKitId").value.trim();
   if (!kitId) { pageStatus("Enter a kit token id."); return; }
   await sendWithPending(el("depositKitBtn"), "Sending kit deposit. Confirm in your wallet.",
-    "deposit_kit", { token_id: TOKEN_ID, kit_token_id: kitId }, "0");
+    "deposit_kit", { token_id: TOKEN_ID, kit_token_id: kitId }, "0", undefined, undefined, "The tool shows in the kit list once the chain confirms it.");
 });
 
 // Buy kit with retained: holder only, spends 0.1 NEAR of the Merit's
@@ -340,7 +386,7 @@ document.getElementById("buyKitForm").addEventListener("submit", async (ev) => {
   const kitId = el("buyKitId").value.trim();
   if (!kitId) { pageStatus("Enter a kit id."); return; }
   await sendWithPending(el("buyKitBtn"), "Sending buy kit. Confirm in your wallet.",
-    "buy_kit", { token_id: TOKEN_ID, kit_token_id: kitId }, "0", undefined, "buyKitStatus");
+    "buy_kit", { token_id: TOKEN_ID, kit_token_id: kitId }, "0", undefined, "buyKitStatus", "The kit shows in the kit list and the retained balance drops once the chain confirms it.");
 });
 
 document.getElementById("withdrawKitForm").addEventListener("submit", async (ev) => {
@@ -349,7 +395,7 @@ document.getElementById("withdrawKitForm").addEventListener("submit", async (ev)
   const kitId = el("withdrawKitId").value.trim();
   if (!kitId) { pageStatus("Enter a kit token id."); return; }
   await sendWithPending(el("withdrawKitBtn"), "Sending kit withdraw. Confirm in your wallet.",
-    "withdraw_kit", { token_id: TOKEN_ID, kit_token_id: kitId }, "0");
+    "withdraw_kit", { token_id: TOKEN_ID, kit_token_id: kitId }, "0", undefined, undefined, "The tool leaves this Merit once the chain confirms it.");
 });
 
 document.getElementById("lendForm").addEventListener("submit", async (ev) => {
@@ -361,13 +407,13 @@ document.getElementById("lendForm").addEventListener("submit", async (ev) => {
   let expiresAt;
   try { expiresAt = dateInputToNs(until); } catch (e) { pageStatus(e.message); return; }
   await sendWithPending(el("lendBtn"), "Sending lend. Confirm in your wallet.",
-    "lend", { token_id: TOKEN_ID, to: to, expires_at: expiresAt }, "0");
+    "lend", { token_id: TOKEN_ID, to: to, expires_at: expiresAt }, "0", undefined, undefined, "The borrower can use this Merit until the expiry date.");
 });
 
 document.getElementById("revokeBtn").addEventListener("click", async () => {
   if (!needWallet()) return;
   await sendWithPending(el("revokeBtn"), "Sending revoke. Confirm in your wallet.",
-    "revoke_lend", { token_id: TOKEN_ID }, "0");
+    "revoke_lend", { token_id: TOKEN_ID }, "0", undefined, undefined, "The lend is revoked once the chain confirms it.");
 });
 
 document.getElementById("stampForm").addEventListener("submit", async (ev) => {
@@ -378,7 +424,7 @@ document.getElementById("stampForm").addEventListener("submit", async (ev) => {
   if (!skill) { pageStatus("Enter a skill."); return; }
   if (!Number.isInteger(level) || level < 1) { pageStatus("Level must be 1 or more."); return; }
   await sendWithPending(el("stampBtn"), "Sending stamp. Confirm in your wallet.",
-    "stamp", { token_id: TOKEN_ID, skill: skill, level: level }, "0");
+    "stamp", { token_id: TOKEN_ID, skill: skill, level: level }, "0", undefined, undefined, "The stamp shows on this Merit and it locks once the chain confirms it.");
 });
 
 document.getElementById("testForm").addEventListener("submit", async (ev) => {
@@ -387,7 +433,7 @@ document.getElementById("testForm").addEventListener("submit", async (ev) => {
   const answer = el("testAnswer").value.trim();
   if (!answer) { pageStatus("Enter an answer."); return; }
   const ok = await sendWithPending(el("testBtn"), "Sending answer. Confirm in your wallet.",
-    "pass_test", { token_id: TOKEN_ID, answer: answer }, "0", undefined, "testStatus");
+    "pass_test", { token_id: TOKEN_ID, answer: answer }, "0", undefined, "testStatus", "The merit-basics stamp shows on this Merit once the chain confirms it, and gated jobs open.");
   // After the test confirms, the Merit reloads with its new stamp.
   // Take the visitor up to the Merit card so they see it, instead
   // of leaving them at the test form with nothing visibly changed.

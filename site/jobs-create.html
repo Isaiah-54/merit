@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Merit: Create job</title>
+<title>Merit: Post job</title>
 <link rel="stylesheet" href="styles.css">
 <script src="config.js"></script>
 <script src="fastnear-wallet.bundle.js"></script>
@@ -26,7 +26,7 @@
   <p id="pageStatus"></p>
   <p style="margin:0 0 4px"><a href="jobs.html">← Jobs</a></p>
   <div class="subpage-head">
-    <h1>Create job</h1>
+    <h1>Post job</h1>
     <p class="lede">Post new work. The pay you enter is held in escrow by the contract until the job completes.</p>
   </div>
   <div class="panel">
@@ -55,6 +55,7 @@
         <div><label for="jobPayment">Pay in NEAR (held in escrow)</label><input id="jobPayment" type="text" placeholder="5" autocomplete="off"></div>
         <div><label for="jobDeadline">Deadline (optional, default 7 days)</label><input id="jobDeadline" type="date"></div>
       </div>
+      <p class="muted small" style="margin:4px 0 0">The Merit keeps 5% of the pay as its working royalty; 95% goes to the worker. The 5% stays in the Merit's own account.</p>
       <button class="btn" id="createJobBtn" type="submit">Post job</button>
     </form>
   </div>

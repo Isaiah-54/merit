@@ -278,7 +278,7 @@ function renderOpenJobs() {
     btn.setAttribute("aria-pressed", active ? "true" : "false");
   });
   if (!total) {
-    offersEl.innerHTML = "<div class=\"panel\"><p style=\"margin:0\">No open offers right now. Post one from <a href=\"jobs-create.html\"><strong>Create job</strong></a> and it will appear here, gated by the stamp it requires.</p></div>";
+    offersEl.innerHTML = "<div class=\"panel\"><p style=\"margin:0\">No open offers right now. Post one from <a href=\"jobs-create.html\"><strong>Post job</strong></a> and it will appear here, gated by the stamp it requires.</p></div>";
     return;
   }
   if (!filtered.length) {
@@ -389,8 +389,9 @@ function wireJobCard(card, job) {
       }
       renderGateOutcome(tokenId, gate);
       pageStatus("Sending take job. Confirm in your wallet.");
-      await walletCall(contractId(), "accept_job", { job_id: jobId, token_id: tokenId }, "0", window.GAS_100);
-      pageStatus("Job taken. It will show here once the chain confirms it.");
+      const acceptRes = await walletCall(contractId(), "accept_job", { job_id: jobId, token_id: tokenId }, "0", window.GAS_100);
+      const acceptHash = txHashFromWalletResult(acceptRes);
+      setTxStatus("Job taken. It will show here once the chain confirms it.", acceptHash, "Do the work, then submit evidence and mark it complete.");
       msg.textContent = "Taken. Reloading…";
       loadJobs();
     } catch (e) {
@@ -408,8 +409,9 @@ function wireJobCard(card, job) {
     completeBtn.disabled = true;
     try {
       pageStatus("Sending complete. Confirm in your wallet.");
-      await walletCall(contractId(), "complete_job", { job_id: jobId, token_id: tokenId }, "0", window.GAS_100);
-      pageStatus("Complete sent. Payment lands in the Merit's account once the chain confirms it.");
+      const completeRes = await walletCall(contractId(), "complete_job", { job_id: jobId, token_id: tokenId }, "0", window.GAS_100);
+      const completeHash = txHashFromWalletResult(completeRes);
+      setTxStatus("Complete sent. Payment lands in the Merit's account once the chain confirms it.", completeHash, "The payment and the completion stamp land in the Merit's account.");
       msg.textContent = "Completed. Reloading\u2026";
       loadJobs();
     } catch (e) {
@@ -429,8 +431,9 @@ function wireJobCard(card, job) {
     msg.textContent = "Sending cancel. Confirm in your wallet.";
     try {
       const call = buildCancelJobCall(jobId);
-      await walletCall(contractId(), call.method, call.args, call.depositYocto, call.gas);
-      msg.textContent = "Job cancelled. The escrow is refunded to the poster.";
+      const cancelRes = await walletCall(contractId(), call.method, call.args, call.depositYocto, call.gas);
+      const cancelHash = txHashFromWalletResult(cancelRes);
+      msg.innerHTML = txStatusHtml("Job cancelled. The escrow is refunded to the poster.", cancelHash, "The escrow is refunded to the poster once the chain confirms it.");
       setTimeout(loadJobs, 1500);
     } catch (e) {
       let r = null;
@@ -472,8 +475,9 @@ function wireJobCard(card, job) {
     evMsg.textContent = "Sending evidence. Confirm in your wallet.";
     try {
       const call = buildSubmitEvidenceCall(jobId, hash, ref || null);
-      await walletCall(contractId(), call.method, call.args, call.depositYocto, call.gas);
-      evMsg.textContent = "Evidence submitted. It will show here once the chain confirms it.";
+      const evRes = await walletCall(contractId(), call.method, call.args, call.depositYocto, call.gas);
+      const evHash = txHashFromWalletResult(evRes);
+      evMsg.innerHTML = txStatusHtml("Evidence submitted. It will show here once the chain confirms it.", evHash, "The poster reviews it, or the DAO judges it if the job is disputed.");
       setTimeout(loadJobs, 1500);
     } catch (e) {
       let r = null;
@@ -485,14 +489,85 @@ function wireJobCard(card, job) {
   });
 }
 
+// Cache the last good job list in this session, so a failed reload
+// does not silently empty the page. A cached list is shown with a
+// note that it is stale, never as if it were fresh.
+const JOBS_CACHE_KEY = "merit-jobs-cache";
+function readJobsCache() {
+  try {
+    const c = JSON.parse(sessionStorage.getItem(JOBS_CACHE_KEY) || "null");
+    if (c && Array.isArray(c.jobs) && c.jobs.length) return c;
+  } catch (_) { /* no usable cache */ }
+  return null;
+}
+function writeJobsCache(jobs) {
+  try { sessionStorage.setItem(JOBS_CACHE_KEY, JSON.stringify({ ts: Date.now(), jobs: jobs })); } catch (_) { /* storage unavailable */ }
+}
+// The hub counters show "…" while the chain answers. When the load
+// fails, a Try again button appears under them.
+function showJobsCountRetry(show) {
+  const btn = el("jobsCountRetry");
+  if (btn) btn.hidden = !show;
+}
+// Every Try again button on the jobs pages re-runs the load.
+function wireJobsRetry() {
+  document.querySelectorAll(".retryJobsBtn").forEach((btn) => {
+    if (btn.dataset.wired) return;
+    btn.dataset.wired = "1";
+    btn.addEventListener("click", () => loadJobs());
+  });
+  const c = el("jobsCountRetry");
+  if (c && !c.dataset.wired) {
+    c.dataset.wired = "1";
+    c.addEventListener("click", () => loadJobs());
+  }
+}
+
 async function loadJobs() {
   const offersEl = el("jobList");
   const progressEl = el("jobProgressList");
   const doneEl = el("completedJobList");
   const hasCounts = el("jobsOpenCount") || el("jobsDoneCount") || el("jobsOffersBadge") || el("jobsDoneBadge");
   if (!offersEl && !progressEl && !doneEl && !hasCounts) return;
+  // The list is read with a 20 second timeout. When the chain is
+  // slow or unreachable, the last good list is shown instead of an
+  // empty page, with a note and a Try again button.
+  let jobs = null;
+  let stale = false;
+  let errMsg = "";
   try {
-    const jobs = await view("list_jobs", { from_index: 0, limit: 50 }) || [];
+    jobs = await withTimeout(view("list_jobs", { from_index: "0", limit: 50 }), 20000, "Loading the job list") || [];
+    writeJobsCache(jobs);
+  } catch (e) {
+    errMsg = e.message || String(e);
+    const cached = readJobsCache();
+    if (cached) { jobs = cached.jobs; stale = true; }
+  }
+  if (!jobs) {
+    setJobsCounts(null, null);
+    cachedOpenJobs = [];
+    const st = el("jobSearchStatus"); if (st) st.textContent = "";
+    const retryBtn = "<button type=\"button\" class=\"btn secondary retryJobsBtn\">Try again</button>";
+    if (offersEl) offersEl.innerHTML = "<p class=\"muted\">Could not load job offers. " + escapeHtml(errMsg) + "</p>" + retryBtn;
+    if (progressEl) progressEl.innerHTML = "";
+    if (doneEl) doneEl.innerHTML = "<p class=\"muted\">Could not load completed jobs. " + escapeHtml(errMsg) + "</p>" + retryBtn;
+    wireJobsRetry();
+    showJobsCountRetry(true);
+    return;
+  }
+  showJobsCountRetry(false);
+  if (stale && offersEl) {
+    const notice = document.createElement("p");
+    notice.className = "muted small";
+    notice.textContent = "Showing the last loaded jobs. The chain could not be reached just now. ";
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "btn secondary retryJobsBtn";
+    b.textContent = "Try again";
+    notice.appendChild(b);
+    offersEl.prepend(notice);
+  }
+  wireJobsRetry();
     const openJobs = jobs.filter((j) => jobStatus(j) === "Open");
     const doneJobs = jobs.filter((j) => jobStatus(j) === "Completed");
     const cancelledJobs = jobs.filter((j) => jobStatus(j) === "Cancelled");
@@ -521,8 +596,8 @@ async function loadJobs() {
             jobFactsHtml(job, status, { hidePay: true }) +
             (worker ? "<div class=\"kv\"><span>Worker</span><b><a class=\"mono\" href=\"merit.html?id=" + encodeURIComponent(worker) + "\">" + escapeHtml(worker) + "</a></b></div>" : "") +
             "<p><strong>Acceptance criteria</strong><br>" + escapeHtml(job.criteria || "Not posted yet.") + "</p>" +
-            (job.poster_evidence ? "<div class=\"evidence-row\"><p class=\"small\"><strong>Poster evidence</strong><br><span class=\"mono\">" + escapeHtml(job.poster_evidence) + "</span>" + (job.poster_evidence_ref ? " <button type=\"button\" class=\"btn secondary viewEvidenceBtn\" data-side=\"poster\">View evidence</button>" : "") + "</p><div class=\"evidenceContent\" aria-live=\"polite\"></div></div>" : "") +
-            (job.worker_evidence ? "<div class=\"evidence-row\"><p class=\"small\"><strong>Worker evidence</strong><br><span class=\"mono\">" + escapeHtml(job.worker_evidence) + "</span>" + (job.worker_evidence_ref ? " <button type=\"button\" class=\"btn secondary viewEvidenceBtn\" data-side=\"worker\">View evidence</button>" : "") + "</p><div class=\"evidenceContent\" aria-live=\"polite\"></div></div>" : "") +
+            (job.poster_evidence ? "<div class=\"evidence-row\"><p class=\"small\"><strong>Poster evidence:</strong> " + evidenceHashHtml(job.poster_evidence) + (job.poster_evidence_ref ? " <button type=\"button\" class=\"btn secondary viewEvidenceBtn\" data-side=\"poster\">View evidence</button>" : "") + "</p><div class=\"evidenceContent\" aria-live=\"polite\"></div></div>" : "") +
+            (job.worker_evidence ? "<div class=\"evidence-row\"><p class=\"small\"><strong>Worker evidence:</strong> " + evidenceHashHtml(job.worker_evidence) + (job.worker_evidence_ref ? " <button type=\"button\" class=\"btn secondary viewEvidenceBtn\" data-side=\"worker\">View evidence</button>" : "") + "</p><div class=\"evidenceContent\" aria-live=\"polite\"></div></div>" : "") +
             (status === "Disputed" ? "<p><a href=\"dao.html" + (pid != null ? "#proposal-" + escapeHtml(String(pid)) : "") + "\">See this dispute in the DAO proposals" + (pid != null ? " (proposal " + escapeHtml(String(pid)) + ")" : "") + "</a></p>" : "") +
             "<p class=\"muted small\">Job <span class=\"mono\">" + escapeHtml(job.job_id) + "</span> \u2022 Arbiter <span class=\"mono\">" + escapeHtml(job.arbiter || window.DAO_ID) + "</span></p>" +
             "<label>Your Merit token id</label>" +
@@ -585,14 +660,6 @@ async function loadJobs() {
         }).join("") + "</div>";
       }
     }
-  } catch (e) {
-    setJobsCounts(null, null);
-    cachedOpenJobs = [];
-    const st = el("jobSearchStatus"); if (st) st.textContent = "";
-    if (offersEl) offersEl.innerHTML = "<p class=\"muted\">Could not load job offers. " + escapeHtml(e.message || String(e)) + "</p>";
-    if (progressEl) progressEl.innerHTML = "";
-    if (doneEl) doneEl.innerHTML = "<p class=\"muted\">Could not load completed jobs. " + escapeHtml(e.message || String(e)) + "</p>";
-  }
 }
 
 // Wire the offers search: typing filters live, Clear and the quick
@@ -689,7 +756,8 @@ async function restoreSkillRequest() {
     if (requestMsg) requestMsg.textContent = "Sending proposal. Confirm in your wallet.";
     pageStatus("Sending proposal. Confirm in your wallet. The 1 NEAR bond comes from you.");
     try {
-      await walletCall(daoId(), call.method, call.args, call.depositYocto, call.gas);
+      const propRes = await walletCall(daoId(), call.method, call.args, call.depositYocto, call.gas);
+      const propHash = txHashFromWalletResult(propRes);
       // The wallet call resolved in this page (no redirect): show the
       // result here and clear the handoff, so the restore does not
       // repeat it on the next load.
@@ -697,8 +765,8 @@ async function restoreSkillRequest() {
       const line = proposalId != null
         ? "Proposal #" + proposalId + " was sent. The DAO council votes on it. Once it passes, " + skill + " can be used when creating a job. See it under DAO."
         : "The proposal was sent. The DAO council votes on it. Once it passes, " + skill + " can be used when creating a job. See it under DAO.";
-      if (requestMsg) requestMsg.textContent = line;
-      pageStatus(line);
+      if (requestMsg) requestMsg.innerHTML = txStatusHtml(line, propHash, null);
+      setTxStatus(line, propHash, null);
     } catch (e) {
       try { sessionStorage.removeItem("merit-pending-skill-request"); } catch (_) { /* storage unavailable */ }
       const r = reportFailure(e);
@@ -757,8 +825,9 @@ async function restoreSkillRequest() {
     btn.disabled = true;
     pageStatus("Sending job. Confirm in your wallet. The payment is held in escrow.");
     try {
-      await walletCall(contractId(), call.method, call.args, call.depositYocto, call.gas);
-      pageStatus("Job sent. It will appear under Job offers once the chain confirms it.");
+      const jobRes = await walletCall(contractId(), call.method, call.args, call.depositYocto, call.gas);
+      const jobHash = txHashFromWalletResult(jobRes);
+      setTxStatus("Job sent. It will appear under Job offers once the chain confirms it.", jobHash, "A worker with the required stamp can take it under Job offers.");
       await loadJobs();
     } catch (e) {
       reportFailure(e);

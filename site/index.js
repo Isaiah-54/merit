@@ -31,7 +31,7 @@ async function loadMerits() {
         "<div class=\"list-visual-meta\">" +
         "<div class=\"list-visual-id\"><a href=\"merit.html?id=" + encodeURIComponent(tokenId) + "\" style=\"color:inherit;text-decoration:none\">" + escapeHtml(tokenId) + "</a></div>" +
         (title !== tokenId ? "<div class=\"list-visual-sub\">" + escapeHtml(title) + "</div>" : "") +
-        "<div class=\"list-visual-sub\">Owner <span class=\"mono\">" + escapeHtml(owner) + "</span></div>" +
+        "<div class=\"list-visual-sub\">Owner: <span class=\"mono\">" + escapeHtml(owner) + "</span></div>" +
         "<div class=\"list-visual-sub\">" + escapeHtml(tier.label) + " tier \u2022 " + stamps.length + (stamps.length === 1 ? " stamp" : " stamps") + " \u2022 " + escapeHtml(locked) + "</div>" +
         "<p style=\"margin:8px 0 0\"><a class=\"btn secondary\" href=\"merit.html?id=" + encodeURIComponent(tokenId) + "\">Open Merit</a></p>" +
         "</div>" +
@@ -74,8 +74,9 @@ async function onMint(ev) {
   btn.disabled = true;
   pageStatus("Sending transaction. Confirm in your wallet.");
   try {
-    await walletCall(contractId(), call.method, call.args, call.depositYocto, call.gas);
-    pageStatus("Mint sent. It will appear here once the chain confirms it.");
+    const res = await walletCall(contractId(), call.method, call.args, call.depositYocto, call.gas);
+    const hash = txHashFromWalletResult(res);
+    setTxStatus("Mint sent. It will appear here once the chain confirms it.", hash, "Pass the demo test to earn your first stamp and open gated jobs.");
     await loadMerits();
   } catch (e) {
     reportFailure(e);

@@ -158,7 +158,7 @@ function evidenceChangedFlags(job, description) {
 function evidenceRowHtml(label, hash, ref, jobId, side) {
   let h = "<div class=\"evidence-row\"><p>" + label + " evidence: ";
   if (hash) {
-    h += "<span class=\"hash\">" + escapeHtml(hash) + "</span>";
+    h += evidenceHashHtml(hash);
     if (ref) {
       h += " <button type=\"button\" class=\"btn secondary viewEvidenceBtn\" data-job-id=\"" + escapeHtml(jobId || "") + "\" data-side=\"" + side + "\">View evidence</button>";
     } else {
@@ -191,7 +191,10 @@ async function loadProposals() {
     }
     renderProposals();
   } catch (e) {
-    list.innerHTML = "<p class=\"muted\">Could not load proposals. " + escapeHtml(e.message || String(e)) + "</p>";
+    list.innerHTML = "<p class=\"muted\">Could not load proposals. " + escapeHtml(e.message || String(e)) + "</p>" +
+      "<p><button type=\"button\" class=\"btn secondary retryProposalsBtn\">Try again</button></p>";
+    const b = list.querySelector(".retryProposalsBtn");
+    if (b) b.addEventListener("click", () => loadProposals());
   }
 }
 
@@ -265,9 +268,10 @@ function renderProposals() {
       if (msg) msg.textContent = "Sending vote…";
       pageStatus("Sending vote. Confirm in your wallet.");
       try {
-        await walletCall(daoId(), call.method, call.args, call.depositYocto, call.gas);
-        pageStatus("Vote sent. It will show here once the chain confirms it.");
-        if (msg) msg.textContent = "Vote sent. Reload to see the new count.";
+        const voteRes = await walletCall(daoId(), call.method, call.args, call.depositYocto, call.gas);
+        const voteHash = txHashFromWalletResult(voteRes);
+        setTxStatus("Vote sent. It will show here once the chain confirms it.", voteHash, "If this vote reaches the threshold, the proposal executes and the job resolves.");
+        if (msg) msg.innerHTML = txStatusHtml("Vote sent. Reload to see the new count.", voteHash, null);
         await loadProposals();
       } catch (e) {
         const r = reportFailure(e);
