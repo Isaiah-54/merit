@@ -4,6 +4,34 @@ The NFT that proves what you can do.
 
 Credentials you earn. Doors only proof can open.
 
+## What Merit is
+
+Merit is an NFT that carries earned credentials and opens doors only that proof can open. You mint a blank Merit. You earn stamps on it by doing real things: passing a test, completing a job, being attested by a DAO. Your Merit computes its level from those stamps, onchain. A paid job, a bounty, a DAO role or a gated room checks your Merit, not your wallet history and not a PDF. No stamp, no entry. And your Merit owns its own account, so the money your work earns lands in the Merit itself.
+
+## The five behaviours
+
+All five are work based. The first three are earned through work, not through trading.
+
+### 1. Own money
+
+Each Merit owns its own real NEAR subaccount, created when the Merit is minted. Job payments land in the Merit's own account, and the holder withdraws from it. The money comes from work the credentials unlock, not from gifts or speculation. The NFT earns by doing.
+
+### 2. Earn
+
+The Merit earns by working. Every time its stamps unlock a job, the Merit keeps 5% of that job's pay in its own account. That 5% is the Merit's royalty: not a resale royalty, a working royalty. A stamped Merit locks and cannot be sold, so there is no resale to take a cut from and no resale royalty to pay. Instead the NFT earns each time its credentials open a door. The work is the royalty. On a 2 NEAR job, 1.9 NEAR is withdrawable by the holder and 0.1 NEAR stays retained in the Merit, earned by unlocking that job.
+
+### 3. Hold inventory
+
+The Merit carries its own kit: the specific tools tied to its credentials, held inside the Merit as NFTs. A welder's Merit carries a welding torch. A photographer's Merit carries a camera. The inventory belongs to the job, not to a general bag. The kit is the visible proof of what the credential certifies the holder to use. The job gate is the stamp, not the kit: removing a tool takes it out of the Merit, but it does not close a job the stamps already unlock. The demo deposits a named Welding torch into merit-2, the tool for its welding credential, and the Merit page shows it by name.
+
+### 4. Carry credentials
+
+Stamps are the heart of Merit. An issuer stamps a credential onto the Merit onchain, bound to the token, with skill, level, issuer account and issuer display name recorded. Only named issuers on the whitelist can stamp. The Merit computes its level from its stamps, onchain: the level is the sum of its stamp levels. Stamps are the proof, and they travel with the token.
+
+### 5. Memberships and access
+
+Access is enforced by the Merit itself. A paid job, a bounty, a DAO role or a gated room checks the Merit's stamps onchain. No stamp, no entry. Membership is not a chat invite or a role in a server. It is a gate the Merit either opens or does not.
+
 ## Status
 
 Deployed and demoed live on testnet. Not submitted yet.
@@ -63,34 +91,6 @@ Two things to know: the demo needs the demo accounts and the deployed contract (
 Lead: Isaiah.
 
 Merit is Isaiah's second hackathon project. His other project is Genesis, and this README names Genesis as the other project, as the hackathon rule requires: the two projects are independent and each README names the other. Submission payout: `otoyo4real.near`, unless Isaiah says otherwise at submission time.
-
-## What Merit is
-
-Merit is an NFT that carries earned credentials and opens doors only that proof can open. You mint a blank Merit. You earn stamps on it by doing real things: passing a test, completing a job, being attested by a DAO. Your Merit computes its level from those stamps, onchain. A paid job, a bounty, a DAO role or a gated room checks your Merit, not your wallet history and not a PDF. No stamp, no entry. And your Merit owns its own account, so the money your work earns lands in the Merit itself.
-
-## The five behaviours
-
-All five are work based. The first three are earned through work, not through trading.
-
-### 1. Own money
-
-Each Merit owns its own real NEAR subaccount, created when the Merit is minted. Job payments land in the Merit's own account, and the holder withdraws from it. The money comes from work the credentials unlock, not from gifts or speculation. The NFT earns by doing.
-
-### 2. Earn
-
-The Merit earns by working. Every time its stamps unlock a job, the Merit keeps 5% of that job's pay in its own account. That 5% is the Merit's royalty: not a resale royalty, a working royalty. A stamped Merit locks and cannot be sold, so there is no resale to take a cut from and no resale royalty to pay. Instead the NFT earns each time its credentials open a door. The work is the royalty. On a 2 NEAR job, 1.9 NEAR is withdrawable by the holder and 0.1 NEAR stays retained in the Merit, earned by unlocking that job.
-
-### 3. Hold inventory
-
-The Merit carries its own kit: the specific tools tied to its credentials, held inside the Merit as NFTs. A welder's Merit carries a welding torch. A photographer's Merit carries a camera. The inventory belongs to the job, not to a general bag. The kit is the visible proof of what the credential certifies the holder to use. The job gate is the stamp, not the kit: removing a tool takes it out of the Merit, but it does not close a job the stamps already unlock. The demo deposits a named Welding torch into merit-2, the tool for its welding credential, and the Merit page shows it by name.
-
-### 4. Carry credentials
-
-Stamps are the heart of Merit. An issuer stamps a credential onto the Merit onchain, bound to the token, with skill, level, issuer account and issuer display name recorded. Only named issuers on the whitelist can stamp. The Merit computes its level from its stamps, onchain: the level is the sum of its stamp levels. Stamps are the proof, and they travel with the token.
-
-### 5. Memberships and access
-
-Access is enforced by the Merit itself. A paid job, a bounty, a DAO role or a gated room checks the Merit's stamps onchain. No stamp, no entry. Membership is not a chat invite or a role in a server. It is a gate the Merit either opens or does not.
 
 ## Lock and lend
 
