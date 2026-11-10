@@ -23,7 +23,6 @@
   <button id="connectBtn">Connect wallet</button>
 </header>
 <main>
-  <p id="pageStatus"></p>
   <h1>Mint a Merit</h1>
   <p class="lede">A blank Merit, your own sub-account, ready to earn stamps.</p>
   <div class="panel">
@@ -34,6 +33,7 @@
         <div><label for="mintPageTitle">Title (optional)</label><input id="mintPageTitle" type="text" placeholder="My Merit" autocomplete="off"></div>
       </div>
       <button class="btn" id="mintPageBtn" type="submit">Mint for 0.1 NEAR</button>
+      <p id="pageStatus" aria-live="polite"></p>
     </form>
   </div>
   <div id="mintResult" aria-live="polite"></div>
