@@ -1,0 +1,5 @@
+contract/src/wallet.wasm
+contract/tests/merit.wasm
+contract/tests/merit_wallet.wasm
+node_modules/
+.testnet-accounts.json

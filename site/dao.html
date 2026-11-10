@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Merit: DAO proposals</title>
+<link rel="stylesheet" href="styles.css">
+<script src="config.js"></script>
+<script src="fastnear-wallet.bundle.js"></script>
+<script src="failure.js"></script>
+<script src="common.js"></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><span data-brand>Merit</span></a>
+  <nav>
+    <a href="index.html">Merits</a>
+    <a href="jobs.html">Jobs</a>
+    <a href="dao.html">DAO</a>
+  </nav>
+  <button id="connectBtn">Connect wallet</button>
+</header>
+<main>
+  <p id="pageStatus"></p>
+  <h1>DAO proposals</h1>
+  <p class="lede">When a job is disputed, the Merit DAO judges it. Each
+  proposal carries the job, the acceptance criteria, the evidence from
+  both sides, and one proposed outcome. The council reads the evidence
+  against the criteria and votes. Two approvals pass a proposal, and
+  the DAO then carries out the outcome on the Merit contract, so the
+  payment releases and the stamp issues, or withholds, automatically.
+  If the council rejects a proposal, the dispute stays open and either
+  side may propose a different outcome.</p>
+
+  <h2>Proposals</h2>
+  <div id="proposalList"><p class="muted">Loading proposals…</p></div>
+</main>
+<footer>
+  <span data-brand>Merit</span> runs on NEAR testnet. All figures shown are
+  real onchain state, never simulated.
+</footer>
+<script src="dao.js"></script>
+<script>
+document.getElementById("connectBtn").addEventListener("click", toggleWallet);
+initWallet();
+</script>
+</body>
+</html>

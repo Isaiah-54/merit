@@ -1,0 +1,43 @@
+{
+  "network": "testnet",
+  "contract_id": "merit-nft.testnet",
+  "token_id": "merit-1",
+  "sub_account": "merit-1.merit-nft.testnet",
+  "mint_tx": "AmDna5YCYWpXij1akCuzqwSENDcwBkeySBRF71DadZGq",
+  "stamp_tx": "FtEJLL66kXFuTPVDBFeHUUdHL54P7GPEucWPrChYhG9v",
+  "create_job_tx": "2FyKU3F1srcsya2Esp9Fhf4NVaMx1VXQB2uED85Rj9YV",
+  "accept_tx": "BZeqD3vT68qBT4AF7gcyewPr6UBAyE4F89BLetWiw5U3",
+  "complete_tx": "C5fd77WNn6kfsUoMm2Cidt2LautCkGUZ2PhPKUdVro5V",
+  "withdraw_tx": "3x64XvuREGtHtyxGRJSJkMvZjnzuu2tZCjnwH2teKQTY",
+  "sub_balance_after_mint_yocto": "50000000000000000000000",
+  "sub_balance_after_job_yocto": "1050000000000000000000000",
+  "sub_balance_after_withdraw_yocto": "100000000000000000000000",
+  "merit_after_job": {
+    "token_id": "merit-1",
+    "owner_id": "merit-worker.testnet",
+    "level": 2,
+    "stamps": [
+      {
+        "skill": "welding",
+        "level": 1,
+        "issuer": "merit-nft.testnet",
+        "issuer_name": "Merit DAO",
+        "stamped_at": "1794264719014930910"
+      },
+      {
+        "skill": "gate-welding",
+        "level": 1,
+        "issuer": "merit-nft.testnet",
+        "issuer_name": "Job completion",
+        "stamped_at": "1794264765970847253"
+      }
+    ],
+    "balance_withdrawable": "950000000000000000000000",
+    "balance_retained": "50000000000000000000000",
+    "locked": true,
+    "kit": [],
+    "lend": null
+  },
+  "job_status": "Completed",
+  "checked_at": "2026-11-09T22:53:24.829Z"
+}

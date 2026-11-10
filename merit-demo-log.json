@@ -1,0 +1,317 @@
+{
+  "network": "testnet",
+  "contract_id": "merit-nft.testnet",
+  "dao_id": "merit-dao.testnet",
+  "token_id": "merit-2",
+  "sub_account": "merit-2.merit-nft.testnet",
+  "worker": "merit-worker.testnet",
+  "poster": "merit-poster.testnet",
+  "owner": "merit-nft.testnet",
+  "joseph_stand_in": "joseph-merit.testnet",
+  "started_at": "2026-11-10T06:24:29.794Z",
+  "steps": {
+    "1-mint": {
+      "tx": "GyiL5pkJSFjztrpGqhiFmDJqxSsM8akw7GUDevCFW37e",
+      "sub_account": "merit-2.merit-nft.testnet",
+      "sub_balance_yocto": "50000000000000000000000",
+      "stamps": [],
+      "status": "done",
+      "finished_at": "2026-11-10T06:28:25.988Z",
+      "note": "Recovered: mint succeeded in the first run but phase 1 failed on a bad code_hash check (see fix). Mint tx recovered from Nearblocks explorer; merit-2 verified blank onchain (owner worker, 0 stamps, sub 0.05 NEAR, wallet get_parent = merit-nft.testnet)."
+    },
+    "2-refusal": {
+      "create_tx": "BiSjKW21QUiEKTp7EMiH4R5mMeRDsBb4mR4GenGMjQnM",
+      "can_access_before": false,
+      "accept_failure": "{\"index\":0,\"kind\":{\"index\":0,\"kind\":{\"FunctionCallError\":{\"ExecutionError\":\"Smart contract panicked: panicked at contract/src/lib.rs:1194:9:\\nMerit does not satisfy the job's required stamps\"}}}}",
+      "job_status": "Open",
+      "status": "done",
+      "finished_at": "2026-11-10T06:29:28.299Z"
+    },
+    "3-pass-test": {
+      "tx": "GxfPQFbYVSC3b7ejcqvHYQYHR4492zRhnCtBVqb3QyRk",
+      "stamp": {
+        "skill": "merit-basics",
+        "level": 1,
+        "issuer": "merit-nft.testnet",
+        "issuer_name": "Merit Test",
+        "stamped_at": "1794292186354892223"
+      },
+      "status": "done",
+      "finished_at": "2026-11-10T06:29:49.475Z"
+    },
+    "4-dao-stamp": {
+      "tx": "QtKGKS1Z39HUn4BHPTqvFu8FcW3pWJrCWZGybzf7ykq",
+      "stamp": {
+        "skill": "welding",
+        "level": 2,
+        "issuer": "merit-nft.testnet",
+        "issuer_name": "Merit DAO",
+        "stamped_at": "1794292200168352286"
+      },
+      "status": "done",
+      "finished_at": "2026-11-10T06:30:03.526Z"
+    },
+    "5-kit": {
+      "mint_tx": "9SVa4yEtik4TPcFZhhA2m8MsRrrTt5spiLpuLEo7VaLL",
+      "deposit_tx": "7FHDsoQJo7sVnU6WBQBZhfC8is32ZxEpakyZGWQyYeey",
+      "kit": {
+        "kit_token_id": "welding-torch",
+        "name": "Welding torch",
+        "owner_id": "merit-worker.testnet",
+        "inside_merit": "merit-2"
+      },
+      "status": "done",
+      "finished_at": "2026-11-10T06:30:45.580Z"
+    },
+    "6-main-job": {
+      "create_tx": "Gy4chcFSB2sPuUyYQ8XfE6QvrhQNDQLAfFSSxkPqN3uT",
+      "accept_tx": "J3tGW8SULJdCq3cSg62QMFSNtZL679cJfk7bT8Foi274",
+      "job_status": "Accepted",
+      "status": "done",
+      "finished_at": "2026-11-10T06:31:30.966Z"
+    },
+    "7-complete": {
+      "tx": "AmecsWJeQTqKtBMgiEAPqzwSjQhR1hQN1yr5KM16xQjf",
+      "sub_balance_yocto": "2050000000000000000000000",
+      "withdrawable_yocto": "1900000000000000000000000",
+      "retained_yocto": "100000000000000000000000",
+      "completion_stamp": {
+        "skill": "welding",
+        "level": 3,
+        "issuer": "merit-nft.testnet",
+        "issuer_name": "Job completion",
+        "stamped_at": "1794292308872401974"
+      },
+      "status": "done",
+      "finished_at": "2026-11-10T06:31:59.279Z"
+    },
+    "8-withdraw": {
+      "tx": "FkdnFvbgraZSCKJf8gqK61r893n9i5R7GUyEBy2V182q",
+      "amount_yocto": "1900000000000000000000000",
+      "holder_delta_yocto": "1899366987744080500000000",
+      "sub_balance_yocto": "150000000000000000000000",
+      "holder_before_yocto": "4232762318713194700000000",
+      "holder_after_yocto": "6132129306457275200000000",
+      "status": "done",
+      "finished_at": "2026-11-10T06:32:34.166Z"
+    },
+    "9-lend": {
+      "lend_tx": "9CTL8nmrEyYqzyqtHmVuAnFmiXnj3cszbVjYYBSNVrqD",
+      "expires_at_ns": "1794292633719000000",
+      "delegate_accept_tx": "AskxMY2tEYVhCEJ2z4AKL9gdqfUEdzMxCcRt4pakZTHG",
+      "delegate_complete_tx": "Dj8Snkjgfgs8Crgxmd9NtZ6chmg8xCiksB7QDFQ99ApE",
+      "post_expiry_refusal": "{\"index\":0,\"kind\":{\"index\":0,\"kind\":{\"FunctionCallError\":{\"ExecutionError\":\"Smart contract panicked: panicked at contract/src/lib.rs:616:9:\\ncaller is neither the holder nor a live lend delegate\"}}}}",
+      "revoke_tx": "7w2e8DtzGYNpdeZLn5nNXSaQbsVrsXLdXEn2dtuyPqMh",
+      "sub_balance_yocto": "650000000000000000000000",
+      "status": "done",
+      "finished_at": "2026-11-10T06:40:35.351Z"
+    },
+    "10-timeout": {
+      "accept_tx": "HkD8tpc8c8YoRa1X7cFq7TzDnopHt4DwMmVLrg1mmEix",
+      "release_tx": "84S8iCG8XyngMYAKHBgbPgjg1sAMcL66WoBa9H4i5cs9",
+      "sub_balance_yocto": "1650000000000000000000000",
+      "withdrawable_yocto": "1425000000000000000000000",
+      "retained_yocto": "175000000000000000000000",
+      "completion_stamp": {
+        "skill": "gate-welding",
+        "level": 1,
+        "issuer": "merit-nft.testnet",
+        "issuer_name": "Job completion",
+        "stamped_at": "1794293046445585234"
+      },
+      "status": "done",
+      "finished_at": "2026-11-10T06:44:11.294Z"
+    },
+    "11-dispute": {
+      "status": "done",
+      "started_at": "2026-11-10T06:45:22.379Z",
+      "proposal_id": 0,
+      "propose_tx": "6pAA4iK6xX3ViY9Hbzkz5wDEPCp9dRNsxcirSYkFW2zr",
+      "accept_tx": "5tW2rF9QLExNpMCepiopsnmg2JL1y8yiB43n9UVvTD5K",
+      "dispute_tx": "3WuUubjzgfyEEjnTVHvWBxp5XYniKpd2Fvux2w8JjTQa",
+      "poster_evidence_tx": "9SYLRMRtKsBTcCPU1FthQvoR9o9ME8ipVNwF2XcZtBj6",
+      "worker_evidence_tx": "HZysz7UGNkb72NKiwKJcMcbgHw5iDAZCHQ1r3Bqgg6h6",
+      "poster_evidence_hash": "4ba371eb0aea80f37b6556969619a2bc0888510d2417f31da28fc59bebba0ec3",
+      "worker_evidence_hash": "01d07c8bd76aa1a1dd12cc74378c09d3f911f8ecec699034f336db27b00f78c6",
+      "joseph_vote_tx": "5yAqA3BYQ8UrxQjUBRQzxo4Vmujrnebh79XEFdRdHmbo",
+      "votes_after_joseph": {},
+      "final_proposal": {
+        "id": 0,
+        "proposer": "merit-poster.testnet",
+        "description": "Merit dispute demo-dispute-gate: pay_full — criteria: Repair the gate hinge so the gate swings freely and latches. Before and after photos required. | poster evidence 4ba371eb0aea80f37b6556969619a2bc0888510d2417f31da28fc59bebba0ec3 | worker evidence 01d07c8bd76aa1a1dd12cc74378c09d3f911f8ecec699034f336db27b00f78c6",
+        "kind": {
+          "FunctionCall": {
+            "receiver_id": "merit-nft.testnet",
+            "actions": [
+              {
+                "method_name": "resolve_dispute",
+                "args": "eyJqb2JfaWQiOiJkZW1vLWRpc3B1dGUtZ2F0ZSIsIm91dGNvbWUiOiJwYXlfZnVsbCJ9",
+                "deposit": "0",
+                "gas": "100000000000000"
+              }
+            ]
+          }
+        },
+        "status": "Approved",
+        "vote_counts": {
+          "council": [
+            2,
+            0,
+            0
+          ]
+        },
+        "votes": {
+          "clearsite587.testnet": "Approve",
+          "joseph-merit.testnet": "Approve"
+        },
+        "submission_time": "1794293118934146173"
+      },
+      "sub_balance_yocto": "2650000000000000000000000",
+      "withdrawable_yocto": "2375000000000000000000000",
+      "retained_yocto": "225000000000000000000000",
+      "completion_stamp": {
+        "skill": "repair-welding",
+        "level": 2,
+        "issuer": "merit-nft.testnet",
+        "issuer_name": "Job completion",
+        "stamped_at": "1794294569236672958"
+      },
+      "finished_at": "2026-11-10T07:09:39.852Z"
+    }
+  },
+  "jobs": {
+    "demo-refusal": {
+      "title": "Demo refusal gate",
+      "payment_yocto": "10000000000000000000000",
+      "payment_near": "0.01",
+      "criteria": "Hold a Merit stamped merit-basics 1 and welding 2.",
+      "required_stamps": [
+        {
+          "min_level": 1,
+          "skill": "merit-basics"
+        },
+        {
+          "min_level": 2,
+          "skill": "welding"
+        }
+      ],
+      "completion_stamp": {
+        "level": 3,
+        "skill": "welding"
+      },
+      "create_tx": "BiSjKW21QUiEKTp7EMiH4R5mMeRDsBb4mR4GenGMjQnM",
+      "status": "Open",
+      "accept_refusal": "{\"index\":0,\"kind\":{\"index\":0,\"kind\":{\"FunctionCallError\":{\"ExecutionError\":\"Smart contract panicked: panicked at contract/src/lib.rs:1194:9:\\nMerit does not satisfy the job's required stamps\"}}}}"
+    },
+    "demo-weld-gate": {
+      "title": "Weld the demo gate",
+      "payment_yocto": "2000000000000000000000000",
+      "payment_near": "2",
+      "criteria": "Weld the gate: continuous beads, no porosity, ground flush. Photo of the finished weld required.",
+      "required_stamps": [
+        {
+          "min_level": 1,
+          "skill": "merit-basics"
+        },
+        {
+          "min_level": 2,
+          "skill": "welding"
+        }
+      ],
+      "completion_stamp": {
+        "level": 3,
+        "skill": "welding"
+      },
+      "create_tx": "Gy4chcFSB2sPuUyYQ8XfE6QvrhQNDQLAfFSSxkPqN3uT",
+      "status": "Completed",
+      "accept_tx": "J3tGW8SULJdCq3cSg62QMFSNtZL679cJfk7bT8Foi274",
+      "complete_tx": "AmecsWJeQTqKtBMgiEAPqzwSjQhR1hQN1yr5KM16xQjf"
+    },
+    "demo-lend-gate": {
+      "title": "Lend demo: weld the side gate",
+      "payment_yocto": "500000000000000000000000",
+      "payment_near": "0.5",
+      "criteria": "Weld the side gate shut, same standard as the front gate.",
+      "required_stamps": [
+        {
+          "min_level": 2,
+          "skill": "welding"
+        }
+      ],
+      "completion_stamp": {
+        "level": 1,
+        "skill": "torch-work"
+      },
+      "create_tx": "HMu66P2qZoMoiejuvVmxrpv5Uv6H2cW5XUxxzN2goRWt",
+      "status": "Completed",
+      "accept_tx": "AskxMY2tEYVhCEJ2z4AKL9gdqfUEdzMxCcRt4pakZTHG",
+      "complete_tx": "Dj8Snkjgfgs8Crgxmd9NtZ6chmg8xCiksB7QDFQ99ApE"
+    },
+    "demo-lend-expired": {
+      "title": "Lend demo: expired access check",
+      "payment_yocto": "10000000000000000000000",
+      "payment_near": "0.01",
+      "criteria": "Never accepted: this job exists only to record the post-expiry refusal.",
+      "required_stamps": [
+        {
+          "min_level": 2,
+          "skill": "welding"
+        }
+      ],
+      "completion_stamp": {
+        "level": 1,
+        "skill": "torch-work"
+      },
+      "create_tx": "CgmDWWghdYjh5aHfR4BERE8WZnioEDqudBw2yAMXfEpK",
+      "status": "Open",
+      "accept_refusal_after_expiry": "{\"index\":0,\"kind\":{\"index\":0,\"kind\":{\"FunctionCallError\":{\"ExecutionError\":\"Smart contract panicked: panicked at contract/src/lib.rs:616:9:\\ncaller is neither the holder nor a live lend delegate\"}}}}"
+    },
+    "demo-timeout-gate": {
+      "title": "Timeout demo: weld the back gate",
+      "payment_yocto": "1000000000000000000000000",
+      "payment_near": "1",
+      "criteria": "Weld the back gate shut, same standard as the front gate.",
+      "required_stamps": [
+        {
+          "min_level": 2,
+          "skill": "welding"
+        }
+      ],
+      "completion_stamp": {
+        "level": 1,
+        "skill": "gate-welding"
+      },
+      "status": "Completed",
+      "accept_tx": "HkD8tpc8c8YoRa1X7cFq7TzDnopHt4DwMmVLrg1mmEix",
+      "release_tx": "84S8iCG8XyngMYAKHBgbPgjg1sAMcL66WoBa9H4i5cs9"
+    },
+    "demo-dispute-gate": {
+      "title": "Dispute demo: repair the gate hinge",
+      "payment_yocto": "1000000000000000000000000",
+      "payment_near": "1",
+      "criteria": "Repair the gate hinge so the gate swings freely and latches. Before and after photos required.",
+      "required_stamps": [
+        {
+          "min_level": 2,
+          "skill": "welding"
+        }
+      ],
+      "completion_stamp": {
+        "level": 2,
+        "skill": "repair-welding"
+      },
+      "create_tx": "HneM5VAofkcJT29BrQ1au4QGiojX4GUFunGKrKbtQh4c",
+      "status": "Completed",
+      "accept_tx": "5tW2rF9QLExNpMCepiopsnmg2JL1y8yiB43n9UVvTD5K",
+      "dispute_tx": "3WuUubjzgfyEEjnTVHvWBxp5XYniKpd2Fvux2w8JjTQa",
+      "poster_evidence_tx": "9SYLRMRtKsBTcCPU1FthQvoR9o9ME8ipVNwF2XcZtBj6",
+      "worker_evidence_tx": "HZysz7UGNkb72NKiwKJcMcbgHw5iDAZCHQ1r3Bqgg6h6",
+      "poster_evidence_hash": "4ba371eb0aea80f37b6556969619a2bc0888510d2417f31da28fc59bebba0ec3",
+      "worker_evidence_hash": "01d07c8bd76aa1a1dd12cc74378c09d3f911f8ecec699034f336db27b00f78c6",
+      "proposal_id": 0,
+      "propose_tx": "6pAA4iK6xX3ViY9Hbzkz5wDEPCp9dRNsxcirSYkFW2zr",
+      "dao_proposal_id": 0
+    }
+  },
+  "updated_at": "2026-11-10T07:09:39.852Z"
+}

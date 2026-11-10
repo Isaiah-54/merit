@@ -1,0 +1,27 @@
+{
+  "network": "testnet",
+  "dao_id": "merit-dao.testnet",
+  "dao_name": "merit-dao",
+  "wasm_bytes": 469723,
+  "wasm_sha256": "6e3f1814d40769d8f57b9a7af689d22aaab96d3232cec4d861311829c1d2318f",
+  "deploy_tx": "7vro3VpcRqWrSLShhHvawhzUyB5KrbSVANaDqm4pvoRm",
+  "init_tx": "BpBZQn7zrk5yVEA39Fh3okqrRMXW9m9QZzkySYSy2zUW",
+  "council": [
+    "clearsite587.testnet",
+    "james54.testnet",
+    "joseph-merit.testnet"
+  ],
+  "council_notes": {
+    "clearsite587.testnet": "Isaiah (lead) — key NOT held here",
+    "james54.testnet": "James54 — key NOT held here",
+    "joseph-merit.testnet": "Joseph seat, STAND-IN until Joseph takes it over at launch (key handover then)"
+  },
+  "vote_threshold": "Weight 2 (2 of 3 council approvals pass a proposal)",
+  "config": {
+    "name": "merit-dao",
+    "purpose": "Merit DAO — judges Merit job disputes by council proposal and vote",
+    "metadata": ""
+  },
+  "dao_balance_yocto": "9996354168475602500000000",
+  "created_at": "2026-11-09T22:43:57.184Z"
+}

@@ -1,0 +1,50 @@
+[package]
+name = "merit"
+version = "0.1.0"
+edition = "2021"
+description = "Merit — an NFT that carries earned credentials and opens doors only that proof can open. Work-based: each Merit owns its own NEAR sub-account, earns a 5% cut of the jobs it unlocks, holds its kit, carries stamps, and gates access. NEAR testnet only."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = "5.5"
+near-contract-standards = "5.30"
+# near-sdk's own "abi" feature cannot be enabled for wasm32 (its schemars
+# dep is host-only), so enable the abi feature on near-account-id directly:
+# that gives AccountId its JsonSchema impl on wasm32 via feature unification.
+near-account-id = { version = "3", features = ["abi"] }
+borsh = "1"
+schemars = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+# "abi" here is test-only: the view structs derive JsonSchema on
+# non-wasm targets, and U128/U64/AccountId only implement JsonSchema
+# when near-sdk's abi feature is on. cargo-near enables abi itself
+# for its ABI-generation host build, and the wasm build must NOT have
+# it (near-sdk's abi deps are host-only) — so it lives in
+# dev-dependencies, which only affects `cargo test` builds.
+near-sdk = { version = "5.5", features = ["unit-testing", "abi"] }
+# Integration tests (contract/tests/integration.rs): local sandbox chain.
+near-workspaces = "0.24"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+anyhow = "1"
+# Test-only: verify the published wallet code hash matches the wasm.
+sha2 = "0.10"
+hex = "0.4"
+# Test-only: base64-encode the DAO proposal FunctionCall args.
+base64 = "0.22"
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+# Unwind, NOT abort: with panic = "abort" every contract panic becomes a
+# bare `unreachable` trap with no message, so no caller can ever learn WHY
+# a call failed (proven lesson from OwnGround v3/v4: a plain cargo build
+# wasm trapped every panic bare). Unwind keeps the panic text.
+panic = "unwind"
+overflow-checks = true

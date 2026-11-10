@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Merit: Merit detail</title>
+<link rel="stylesheet" href="styles.css">
+<script src="config.js"></script>
+<script src="fastnear-wallet.bundle.js"></script>
+<script src="failure.js"></script>
+<script src="common.js"></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><span data-brand>Merit</span></a>
+  <nav>
+    <a href="index.html">Merits</a>
+    <a href="jobs.html">Jobs</a>
+    <a href="dao.html">DAO</a>
+  </nav>
+  <button id="connectBtn">Connect wallet</button>
+</header>
+<main>
+  <p id="pageStatus"></p>
+  <p><a href="index.html">All Merits</a></p>
+  <h1 id="meritTitle">Merit</h1>
+  <div id="meritSummary"><p class="muted">Loading Merit…</p></div>
+
+  <h2>Stamps and level</h2>
+  <div id="stampList"><p class="muted">Loading stamps…</p></div>
+
+  <h2>Account balance</h2>
+  <div class="panel" id="balancePanel"><p class="muted">Loading balance…</p></div>
+  <div class="panel">
+    <h3>Withdraw</h3>
+    <p class="muted small">Withdraw from the withdrawable balance to your
+    wallet. The retained part stays in the Merit account.</p>
+    <form id="withdrawForm">
+      <label for="withdrawAmount">Amount in NEAR</label>
+      <input id="withdrawAmount" type="text" placeholder="1" autocomplete="off">
+      <button id="withdrawBtn" type="submit">Withdraw</button>
+    </form>
+  </div>
+
+  <h2>Kit</h2>
+  <div id="kitList"><p class="muted">Loading kit…</p></div>
+  <div class="panel">
+    <h3>Deposit kit into this Merit</h3>
+    <form id="depositKitForm">
+      <label for="depositKitId">Kit token id</label>
+      <input id="depositKitId" type="text" placeholder="hammer1" autocomplete="off">
+      <button id="depositKitBtn" type="submit">Deposit kit</button>
+    </form>
+    <h3>Withdraw kit from this Merit</h3>
+    <form id="withdrawKitForm">
+      <label for="withdrawKitId">Kit token id</label>
+      <input id="withdrawKitId" type="text" placeholder="hammer1" autocomplete="off">
+      <button id="withdrawKitBtn" type="submit">Withdraw kit</button>
+    </form>
+  </div>
+
+  <h2>Lend</h2>
+  <div class="panel" id="lendPanel"><p class="muted">Loading lend state…</p></div>
+  <div class="panel">
+    <h3>Lend this Merit</h3>
+    <p class="muted small">Lending keeps the Merit yours. The borrower can
+    use it until the expiry date. A locked Merit can be lent, never sold.</p>
+    <form id="lendForm">
+      <label for="lendTo">Lend to (account id)</label>
+      <input id="lendTo" type="text" placeholder="friend.testnet" autocomplete="off">
+      <label for="lendUntil">Lend until (date)</label>
+      <input id="lendUntil" type="date">
+      <button id="lendBtn" type="submit">Lend</button>
+    </form>
+    <p><button id="revokeBtn" class="secondary" type="button">Revoke lend</button></p>
+  </div>
+
+  <h2>Stamp and test</h2>
+  <div class="panel">
+    <h3>Add a stamp</h3>
+    <p class="muted small">Only a stamp issuer can stamp. Stamping locks
+    this Merit.</p>
+    <form id="stampForm">
+      <label for="stampSkill">Skill</label>
+      <input id="stampSkill" type="text" placeholder="welding" autocomplete="off">
+      <label for="stampLevel">Level</label>
+      <input id="stampLevel" type="number" min="1" value="1">
+      <button id="stampBtn" type="submit">Stamp</button>
+    </form>
+    <h3>Pass a test</h3>
+    <p class="muted small">Only the holder can pass a test for this Merit.</p>
+    <form id="testForm">
+      <label for="testAnswer">Answer</label>
+      <input id="testAnswer" type="text" placeholder="answer" autocomplete="off">
+      <button id="testBtn" type="submit">Submit answer</button>
+    </form>
+  </div>
+</main>
+<footer>
+  <span data-brand>Merit</span> runs on NEAR testnet. All figures shown are
+  real onchain state, never simulated.
+</footer>
+<script src="merit.js"></script>
+<script>
+document.getElementById("connectBtn").addEventListener("click", toggleWallet);
+initWallet();
+</script>
+</body>
+</html>

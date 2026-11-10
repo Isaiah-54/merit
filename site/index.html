@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Merit: Proof you earned. Doors only proof can open.</title>
+<link rel="stylesheet" href="styles.css">
+<script src="config.js"></script>
+<script src="fastnear-wallet.bundle.js"></script>
+<script src="failure.js"></script>
+<script src="common.js"></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><span data-brand>Merit</span></a>
+  <nav>
+    <a href="index.html">Merits</a>
+    <a href="jobs.html">Jobs</a>
+    <a href="dao.html">DAO</a>
+  </nav>
+  <button id="connectBtn">Connect wallet</button>
+</header>
+<main>
+  <p id="pageStatus"></p>
+  <h1>Proof you earned. Doors only proof can open.</h1>
+  <p class="lede"><span data-brand>Merit</span> is an NFT that carries earned
+  credentials and opens doors only that proof can open. It is built on work:
+  every stamp, every level, every job comes from something done, not
+  something bought.</p>
+  <p>
+    <a class="btn" href="#mint">Mint a Merit</a>
+    <a class="btn secondary" href="jobs.html">See the jobs</a>
+  </p>
+
+  <h2>Five things a Merit does</h2>
+  <div class="grid">
+    <div class="card tone-blue"><div class="label">Own account</div><p>Each Merit owns its own NEAR account. Job payments land in it.</p></div>
+    <div class="card tone-green"><div class="label">Takes its cut</div><p>The Merit takes 5 percent of every job it unlocks and keeps it in its own account.</p></div>
+    <div class="card tone-amber"><div class="label">Carries its kit</div><p>Tools tied to its credentials travel inside it as NFTs.</p></div>
+    <div class="card tone-purple"><div class="label">Stamps and level</div><p>Issuers stamp credentials onto it onchain and it computes a level from its stamps.</p></div>
+    <div class="card tone-green"><div class="label">Gates</div><p>Gates check its stamps before they open. No stamp, no entry.</p></div>
+  </div>
+
+  <h2>Locked, not stuck</h2>
+  <div class="panel">
+    <p>Once stamped, a Merit locks. It cannot be sold. It can be lent to
+    another wallet until an onchain expiry, so the proof stays yours while
+    someone else uses it for a while.</p>
+  </div>
+
+  <h2 id="mint">Mint a blank Merit</h2>
+  <div class="panel">
+    <p class="muted small">A blank Merit costs 0.1 NEAR. It starts with no
+    stamps and level 0. Connect your wallet first.</p>
+    <form id="mintForm">
+      <label for="tokenId">Token id</label>
+      <input id="tokenId" type="text" placeholder="mymerit" autocomplete="off">
+      <label for="meritTitle">Title (optional)</label>
+      <input id="meritTitle" type="text" placeholder="My Merit" autocomplete="off">
+      <button id="mintBtn" type="submit">Mint for 0.1 NEAR</button>
+    </form>
+  </div>
+
+  <h2>All Merits</h2>
+  <div id="meritList"><p class="muted">Loading Merits…</p></div>
+</main>
+<footer>
+  <span data-brand>Merit</span> runs on NEAR testnet. All figures shown are
+  real onchain state, never simulated.
+</footer>
+<script src="index.js"></script>
+<script>
+document.getElementById("connectBtn").addEventListener("click", toggleWallet);
+initWallet();
+</script>
+</body>
+</html>

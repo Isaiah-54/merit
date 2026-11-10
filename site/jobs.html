@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Merit: Jobs</title>
+<link rel="stylesheet" href="styles.css">
+<script src="config.js"></script>
+<script src="fastnear-wallet.bundle.js"></script>
+<script src="failure.js"></script>
+<script src="common.js"></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><span data-brand>Merit</span></a>
+  <nav>
+    <a href="index.html">Merits</a>
+    <a href="jobs.html">Jobs</a>
+    <a href="dao.html">DAO</a>
+  </nav>
+  <button id="connectBtn">Connect wallet</button>
+</header>
+<main>
+  <p id="pageStatus"></p>
+  <h1>Jobs</h1>
+  <p class="lede">Work that only a stamped Merit can take. Each job names the
+  stamps it needs and the payment held in escrow. A Merit without the stamp
+  is refused at the gate, and the refusal says so.</p>
+
+  <h2>Create a job</h2>
+  <div class="panel">
+    <p class="muted small">The payment you enter is held in escrow by the
+    contract when you create the job. Connect your wallet first.</p>
+    <form id="createJobForm">
+      <label for="jobId">Job id</label>
+      <input id="jobId" type="text" placeholder="weldgate" autocomplete="off">
+      <label for="jobTitle">Title</label>
+      <input id="jobTitle" type="text" placeholder="Weld the gate" autocomplete="off">
+      <label for="jobDesc">Description</label>
+      <textarea id="jobDesc" rows="3" placeholder="What the work is"></textarea>
+      <label for="jobStamps">Required stamps (skill and level, one per line, like welding 2)</label>
+      <textarea id="jobStamps" rows="3" placeholder="welding 2"></textarea>
+      <label for="jobCompletionSkill">Completion stamp skill (the credential the worker earns)</label>
+      <input id="jobCompletionSkill" type="text" placeholder="welding" autocomplete="off">
+      <label for="jobCompletionLevel">Completion stamp level (1 to 3)</label>
+      <input id="jobCompletionLevel" type="number" min="1" max="3" value="1">
+      <label for="jobCriteria">Acceptance criteria (the work is judged against this text)</label>
+      <textarea id="jobCriteria" rows="3" placeholder="Weld it clean and strong."></textarea>
+      <label for="jobPayment">Payment in NEAR (held in escrow)</label>
+      <input id="jobPayment" type="text" placeholder="5" autocomplete="off">
+      <button id="createJobBtn" type="submit">Create job</button>
+    </form>
+  </div>
+
+  <h2>Open jobs</h2>
+  <p class="muted">A disputed job goes to the Merit DAO. <a href="dao.html">See the DAO proposals</a>.</p>
+  <div id="jobList"><p class="muted">Loading jobs…</p></div>
+</main>
+<footer>
+  <span data-brand>Merit</span> runs on NEAR testnet. All figures shown are
+  real onchain state, never simulated.
+</footer>
+<script src="jobs.js"></script>
+<script>
+document.getElementById("connectBtn").addEventListener("click", toggleWallet);
+initWallet();
+</script>
+</body>
+</html>

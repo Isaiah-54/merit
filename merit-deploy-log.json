@@ -1,0 +1,31 @@
+{
+  "network": "testnet",
+  "contract_id": "merit-nft.testnet",
+  "dao_id": "merit-dao.testnet",
+  "owner": "merit-nft.testnet",
+  "merit_wasm_bytes": 482654,
+  "merit_wasm_sha256": "9801e2a8b17092be27cf65f197860426149dd03f9aac304dc2f9d222304ebaf6",
+  "wallet_wasm_bytes": 113927,
+  "wallet_wasm_sha256": "080cc3f9d475ff0355dfbe156fd47e3255dcbabab830c38b2a4b03b3dafce6e7",
+  "wallet_deploy_method": "global contract by code hash (deploy_wallet_global)",
+  "deploy_tx": "F6VrR4SUyBT6tx58yXd42sWKeRhD2DMCs3EJrja9kExq",
+  "init_tx": "LHjjMBgnKP18x3wyA7SqRfugpB2r1QbVou4RS27Nh6M",
+  "deploy_wallet_global_tx": "74PWnhnDVvyAScwXezV9kdunk6u5h32xvSZzwdLjhfJG",
+  "deploy_wallet_global_first_attempt_tx": "3JeSM7fWbHnuUsTuFEHcWvx1tEyPjYdge5s5WvFvva3e",
+  "deploy_wallet_global_first_attempt": "FAILED LackBalanceForState (storage shortfall 11.3927 NEAR); contract funded with 13 NEAR from joseph-merit (6.5) + merit-worker (6.5), then retried",
+  "get_owner": "merit-nft.testnet",
+  "get_dao": "merit-dao.testnet",
+  "get_wallet_info": {
+    "code_hash": "080cc3f9d475ff0355dfbe156fd47e3255dcbabab830c38b2a4b03b3dafce6e7",
+    "deployed": true,
+    "embedded": false
+  },
+  "list_issuers": [
+    {
+      "account_id": "merit-nft.testnet",
+      "name": "Merit DAO"
+    }
+  ],
+  "contract_balance_yocto": "11600469366660744100000000",
+  "deployed_at": "2026-11-09T22:49:18.688Z"
+}

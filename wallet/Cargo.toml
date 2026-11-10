@@ -1,0 +1,21 @@
+[package]
+name = "merit-wallet"
+version = "0.1.0"
+edition = "2021"
+description = "Merit wallet — the tiny contract deployed on each Merit token's own NEAR sub-account (as a global contract, referenced by code hash). It holds that Merit's money and only pays out when the parent Merit contract tells it to. TESTNET ONLY."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = "5.5"
+borsh = "1"
+serde = { version = "1", features = ["derive"] }
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "unwind"
+overflow-checks = true
