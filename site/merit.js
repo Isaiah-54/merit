@@ -147,6 +147,19 @@ async function loadMerit() {
     const ws = el("withdrawSection");
     if (ws) ws.style.display = isOwner ? "" : "none";
 
+    // The stamp form is issuer-only. Ask the contract whether the
+    // connected wallet is a whitelisted issuer; anyone else sees a
+    // short note instead of a form they cannot use. When no wallet
+    // is connected, the form stays hidden too.
+    const stampSection = el("stampSection");
+    const stampNote = el("stampNote");
+    let walletIsIssuer = false;
+    if (walletAccountId) {
+      try { walletIsIssuer = await view("is_issuer", { account_id: walletAccountId }); } catch (_) { walletIsIssuer = false; }
+    }
+    if (stampSection) stampSection.style.display = walletIsIssuer ? "" : "none";
+    if (stampNote) stampNote.style.display = walletIsIssuer ? "none" : "";
+
     const kit = m.kit || [];
     const kitIntro = "<p class=\"muted small\" style=\"margin-top:0\">The tools this Merit carries. Each tool is a named NFT tied to a credential the Merit holds, kept inside the Merit so the holder always has the right tool for the work its stamps unlock.</p>";
     if (kit.length === 0) {

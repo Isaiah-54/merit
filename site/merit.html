@@ -81,16 +81,19 @@
 
   <h2>Stamp and test</h2>
   <div class="panel" id="testSection">
-    <h3>Add a stamp</h3>
-    <p class="muted small">Only a stamp issuer can stamp. Stamping locks
-    this Merit.</p>
-    <form id="stampForm">
-      <label for="stampSkill">Skill</label>
-      <input id="stampSkill" type="text" placeholder="welding" autocomplete="off">
-      <label for="stampLevel">Level</label>
-      <input id="stampLevel" type="number" min="1" value="1">
-      <button id="stampBtn" type="submit">Stamp</button>
-    </form>
+    <div id="stampSection">
+      <h3>Add a stamp</h3>
+      <p class="muted small">Only a stamp issuer can stamp. Stamping locks
+      this Merit.</p>
+      <form id="stampForm">
+        <label for="stampSkill">Skill</label>
+        <input id="stampSkill" type="text" placeholder="welding" autocomplete="off">
+        <label for="stampLevel">Level</label>
+        <input id="stampLevel" type="number" min="1" value="1">
+        <button id="stampBtn" type="submit">Stamp</button>
+      </form>
+    </div>
+    <p class="muted small" id="stampNote" style="display:none">Stamps come from a whitelisted issuer, not from the holder. You earn your first stamp by passing the test below.</p>
     <h3>Pass a test</h3>
     <p class="muted small">Only the holder can pass a test for this Merit.</p>
     <form id="testForm">
