@@ -67,7 +67,7 @@ Mint costs 0.1 NEAR: 0.05 NEAR goes into the new subaccount and 0.05 NEAR stays 
 1. Someone posts a job on Merit's board with the work, the payment locked in escrow in the contract, the stamp requirement, and clear acceptance criteria. The payment is the attached deposit in full. Minimum job payment is 0.001 NEAR.
 2. The holder browses the board. Each job shows its requirement and which jobs their Merit unlocks. The gate check happens onchain.
 3. The holder takes a job their stamps unlock, in one transaction. The job is now assigned to their Merit.
-4. The holder does the work offchain.
+4. The holder does the work.
 5. The poster confirms completion onchain. That confirmation is the trust point: the poster must say the work is done. Completing the job pays the escrow into the Merit's own account, 95% withdrawable and 5% retained, and issues the job's completion stamp, which raises the Merit's level and unlocks bigger jobs.
 
 ## Poster timeout
