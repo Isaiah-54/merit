@@ -514,6 +514,40 @@ footer a:hover { color: var(--accent2); }
   .job-pay-banner .pay-note { margin-left: 0; text-align: left; }
 }
 
+/* ---- Job offers: horizontal layout ----
+   One job per row, full width, like the phone view. The old
+   multi-across grid squeezed each card into a tall narrow tower
+   and the words wrapped down a narrow column. Here the card is
+   wide: title and pay share the head row, the facts sit side by
+   side in a strip, and the token input and buttons share one
+   action row. On a narrow phone the strip and the action row
+   stack again, exactly as the phone view already did. */
+.jobs-list-h { display: flex; flex-direction: column; gap: 14px; }
+.job-card-h .jh-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.job-card-h .jh-head-left { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.job-card-h .jh-title { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; }
+.job-card-h .jh-head-left .job-type { margin: 0; }
+.job-card-h .jh-pay { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; flex: none; text-align: right; }
+.job-card-h .jh-pay .pay-label { font-size: 13px; font-weight: 800; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); }
+.job-card-h .jh-pay .pay-amount { font-size: 25px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; color: var(--text); }
+.job-card-h .jh-pay .pay-note { font-size: 13px; color: var(--muted); }
+.job-card-h .jh-facts { display: flex; gap: 20px; flex-wrap: wrap; margin: 14px 0 4px; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.job-card-h .jh-fact { flex: 1 1 150px; min-width: 0; }
+.job-card-h .jh-fact span { display: block; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+.job-card-h .jh-fact b { font-size: 15px; }
+.job-card-h .jh-action { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; margin-top: 14px; }
+.job-card-h .jh-token { flex: 1 1 260px; min-width: 0; }
+.job-card-h .jh-token input { width: 100%; }
+.job-card-h .jh-buttons { display: flex; gap: 10px; flex: none; flex-wrap: wrap; }
+.job-card-h .jh-buttons .btn { min-width: 130px; }
+@media (max-width: 640px) {
+  .job-card-h .jh-head { flex-direction: column; gap: 8px; }
+  .job-card-h .jh-pay { text-align: left; }
+  .job-card-h .jh-facts { flex-direction: column; gap: 8px; }
+  .job-card-h .jh-action { flex-direction: column; align-items: stretch; }
+  .job-card-h .jh-buttons .btn { flex: 1; }
+}
+
 /* ---- Loading shimmer: placeholders read as loading, not bare dots ---- */
 @keyframes merit-shimmer { 0% { opacity: 0.55; } 50% { opacity: 1; } 100% { opacity: 0.55; } }
 .loading { animation: merit-shimmer 1.4s ease-in-out infinite; }

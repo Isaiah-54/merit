@@ -334,6 +334,17 @@ function jobFactsHtml(job, status, opts) {
   const stamps = normStamps(job);
   const stampText = stamps.length ? stamps.map((s) => escapeHtml(s.skill) + " level " + escapeHtml(String(s.level))).join(", ") : "No stamp needed";
   const cs = job.completion_stamp || job.completionStamp || null;
+  // Horizontal strip for the offers page: the same facts side by
+  // side in labelled columns instead of stacked key/value rows.
+  // The default vertical rows stay for every other page.
+  if (opts && opts.horizontal) {
+    return "<div class=\"jh-facts\">" +
+      (hidePay ? "" : "<div class=\"jh-fact\"><span>Pay " + (status === "Completed" ? "paid" : "(in escrow)") + "</span><b>" + escapeHtml(fmtYocto(jobPaymentYocto(job))) + " NEAR</b></div>") +
+      "<div class=\"jh-fact\"><span>Stamp required</span><b>" + stampText + "</b></div>" +
+      (cs && cs.skill ? "<div class=\"jh-fact\"><span>" + (status === "Completed" ? "Stamp issued" : "Completion stamp") + "</span><b>" + escapeHtml(cs.skill) + " level " + escapeHtml(String(cs.level != null ? cs.level : 1)) + "</b></div>" : "") +
+      "<div class=\"jh-fact\"><span>Deadline</span><b>" + escapeHtml(jobDeadlineText(job)) + "</b></div>" +
+      "</div>";
+  }
   return (hidePay ? "" : "<div class=\"kv\"><span>Pay " + (status === "Completed" ? "paid" : "(in escrow)") + "</span><b>" + escapeHtml(fmtYocto(jobPaymentYocto(job))) + " NEAR</b></div>") +
     "<div class=\"kv\"><span>Stamp required</span><b>" + stampText + "</b></div>" +
     (cs && cs.skill ? "<div class=\"kv\"><span>" + (status === "Completed" ? "Stamp issued" : "Completion stamp") + "</span><b>" + escapeHtml(cs.skill) + " level " + escapeHtml(String(cs.level != null ? cs.level : 1)) + "</b></div>" : "") +
@@ -425,23 +436,30 @@ function renderOpenJobs() {
     if (inline) inline.addEventListener("click", clearJobSearch);
     return;
   }
-  offersEl.innerHTML = "<div class=\"grid\">" + filtered.map((job) => {
+  offersEl.innerHTML = "<div class=\"jobs-list-h\">" + filtered.map((job) => {
     const status = jobStatus(job);
     const isPoster = Boolean(walletAccountId) && job.poster === walletAccountId;
-    return "<div class=\"card\" data-job-id=\"" + escapeHtml(job.job_id) + "\">" +
-      "<div class=\"job-card-top\"><div class=\"label\">" + escapeHtml(job.title || job.job_id) + "</div><span class=\"chip open\">Open</span></div>" +
-      jobTypeHtml(job) +
-      jobPayBannerHtml(job) +
+    // Horizontal card: one job per row, full width. Head row holds
+    // the title and the pay; the facts sit side by side in a strip;
+    // the token input and the buttons share one action row. Every
+    // class the wiring and the gate check rely on is unchanged.
+    return "<div class=\"card job-card-h\" data-job-id=\"" + escapeHtml(job.job_id) + "\">" +
+      "<div class=\"jh-head\">" +
+        "<div class=\"jh-head-left\"><div class=\"jh-title\">" + escapeHtml(job.title || job.job_id) + "</div>" + jobTypeHtml(job) + "<span class=\"chip open\">Open</span></div>" +
+        "<div class=\"jh-pay\"><span class=\"pay-label\">Pay:</span><span class=\"pay-amount\">" + escapeHtml(fmtYocto(jobPaymentYocto(job))) + " NEAR</span><span class=\"pay-note\">held in escrow until the work completes</span></div>" +
+      "</div>" +
+      jobFactsHtml(job, status, { hidePay: true, horizontal: true }) +
       jobDescriptionHtml(job) +
-      jobFactsHtml(job, status, { hidePay: true }) +
       "<p><strong>Acceptance criteria</strong><br>" + escapeHtml(job.criteria || "Not posted yet.") + "</p>" +
       "<p class=\"muted small\">Job <span class=\"mono\">" + escapeHtml(job.job_id) + "</span> \u2022 Posted by <span class=\"mono\">" + escapeHtml(job.poster || "unknown") + "</span></p>" +
-      "<label>Your Merit token id</label>" +
-      "<input type=\"text\" class=\"acceptMerit\" placeholder=\"merit-2\" autocomplete=\"off\">" +
-      "<p class=\"muted small\" style=\"margin:6px 0 0\">A Merit without the stamp above is refused. Try a blank Merit and the gate will say so plainly.</p>" +
-      "<div class=\"vote-row\"><button type=\"button\" class=\"btn secondary checkBtn\">Check access</button>" +
-      "<button type=\"button\" class=\"btn acceptBtn\">Take job</button></div>" +
-      (isPoster ? "<div class=\"vote-row\"><button type=\"button\" class=\"btn secondary cancelBtn\">Cancel job</button></div>" : "") +
+      "<div class=\"jh-action\">" +
+        "<div class=\"jh-token\"><label>Your Merit token id</label>" +
+        "<input type=\"text\" class=\"acceptMerit\" placeholder=\"merit-2\" autocomplete=\"off\">" +
+        "<p class=\"muted small\" style=\"margin:6px 0 0\">A Merit without the stamp above is refused. Try a blank Merit and the gate will say so plainly.</p></div>" +
+        "<div class=\"jh-buttons\"><button type=\"button\" class=\"btn secondary checkBtn\">Check access</button>" +
+        "<button type=\"button\" class=\"btn acceptBtn\">Take job</button>" +
+        (isPoster ? "<button type=\"button\" class=\"btn secondary cancelBtn\">Cancel job</button>" : "") + "</div>" +
+      "</div>" +
       "<div class=\"msg jobMsg\" aria-live=\"polite\"></div>" +
       "</div>";
   }).join("") + "</div>";
@@ -709,7 +727,7 @@ async function loadJobs() {
     if (progressEl) {
       let progressHtml = "";
       if (progressJobs.length) {
-        progressHtml += "<h3 class=\"job-subhead\">Already taken: in progress or disputed</h3><div class=\"grid\">" + progressJobs.map((job) => {
+        progressHtml += "<h3 class=\"job-subhead\">Already taken: in progress or disputed</h3><div class=\"jobs-list-h\">" + progressJobs.map((job) => {
           const status = jobStatus(job);
           const worker = jobWorker(job);
           const pid = jobProposalId(job);
@@ -737,12 +755,12 @@ async function loadJobs() {
           } else {
             completeHtml = "<p class=\"muted small\">Only the poster can confirm completion. The worker submits evidence below.</p>";
           }
-          return "<div class=\"card\" data-job-id=\"" + escapeHtml(job.job_id) + "\">" +
+          return "<div class=\"card job-card-h\" data-job-id=\"" + escapeHtml(job.job_id) + "\">" +
             "<div class=\"job-card-top\"><div class=\"label\">" + escapeHtml(job.title || job.job_id) + "</div><span class=\"chip status\">" + escapeHtml(status) + "</span></div>" +
             jobTypeHtml(job) +
             jobPayBannerHtml(job) +
             jobDescriptionHtml(job) +
-            jobFactsHtml(job, status, { hidePay: true }) +
+            jobFactsHtml(job, status, { hidePay: true, horizontal: true }) +
             (worker ? "<div class=\"kv\"><span>Worker</span><b><a class=\"mono\" href=\"merit.html?id=" + encodeURIComponent(worker) + "\">" + escapeHtml(worker) + "</a></b></div>" : "") +
             "<p><strong>Acceptance criteria</strong><br>" + escapeHtml(job.criteria || "Not posted yet.") + "</p>" +
             (job.poster_evidence ? "<div class=\"evidence-row\"><p class=\"small\"><strong>Poster evidence:</strong> " + evidenceHashHtml(job.poster_evidence) + (job.poster_evidence_ref ? " <button type=\"button\" class=\"btn secondary viewEvidenceBtn\" data-side=\"poster\">View evidence</button>" : "") + "</p><div class=\"evidenceContent\" aria-live=\"polite\"></div></div>" : "") +
@@ -756,12 +774,12 @@ async function loadJobs() {
         }).join("") + "</div>";
       }
       if (cancelledJobs.length) {
-        progressHtml += "<h3 class=\"job-subhead\">Cancelled</h3><div class=\"grid\">" + cancelledJobs.map((job) => {
-          return "<div class=\"card\" data-job-id=\"" + escapeHtml(job.job_id) + "\">" +
+        progressHtml += "<h3 class=\"job-subhead\">Cancelled</h3><div class=\"jobs-list-h\">" + cancelledJobs.map((job) => {
+          return "<div class=\"card job-card-h\" data-job-id=\"" + escapeHtml(job.job_id) + "\">" +
             "<div class=\"job-card-top\"><div class=\"label\">" + escapeHtml(job.title || job.job_id) + "</div><span class=\"chip status\">Cancelled</span></div>" +
             jobTypeHtml(job) +
             jobDescriptionHtml(job) +
-            jobFactsHtml(job, "Cancelled", { hidePay: true }) +
+            jobFactsHtml(job, "Cancelled", { hidePay: true, horizontal: true }) +
             "<p class=\"muted small\">The escrow was refunded to the poster.</p>" +
             "<p class=\"muted small\">Job <span class=\"mono\">" + escapeHtml(job.job_id) + "</span> \u2022 Posted by <span class=\"mono\">" + escapeHtml(job.poster || "unknown") + "</span></p>" +
             "</div>";
