@@ -326,6 +326,35 @@ function meritTier(level) {
   return { key: "bronze", label: "Bronze" };
 }
 let badgeUid = 0;
+// The holographic layer inside the seal: a glowing blue rosette
+// medallion the level emblem sits on, laurel branches flanking it,
+// and faint light rays. Built in code so the petals and leaves are
+// placed by angle, not hand-written one by one.
+function badgeHolo(uid) {
+  let petals = "";
+  for (let k = 0; k < 12; k++) {
+    petals += "<ellipse cx=\"60\" cy=\"9\" rx=\"8\" ry=\"14\" transform=\"rotate(" + (k * 30) + " 60 44)\"/>";
+  }
+  const leaves = [[44, 92, -50], [36, 78, -35], [30, 62, -20], [28, 46, -5], [76, 92, 50], [84, 78, 35], [90, 62, 20], [92, 46, 5]];
+  let laurel = "";
+  for (const l of leaves) {
+    laurel += "<ellipse cx=\"" + l[0] + "\" cy=\"" + l[1] + "\" rx=\"4\" ry=\"9\" transform=\"rotate(" + l[2] + " " + l[0] + " " + l[1] + ")\"/>";
+  }
+  return "<svg class=\"badge-holo\" viewBox=\"0 0 120 120\" aria-hidden=\"true\">" +
+    "<defs><radialGradient id=\"" + uid + "-disc\" cx=\"50%\" cy=\"42%\" r=\"65%\">" +
+    "<stop offset=\"0%\" stop-color=\"#8fe9ff\"/><stop offset=\"45%\" stop-color=\"#2f7fe0\"/><stop offset=\"100%\" stop-color=\"#123a8f\"/></radialGradient>" +
+    "<linearGradient id=\"" + uid + "-petal\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">" +
+    "<stop offset=\"0%\" stop-color=\"#bfefff\"/><stop offset=\"100%\" stop-color=\"#1d5fd6\"/></linearGradient></defs>" +
+    "<g stroke=\"rgba(255,255,255,0.10)\" stroke-width=\"1.5\">" +
+    "<line x1=\"60\" y1=\"60\" x2=\"14\" y2=\"10\"/><line x1=\"60\" y1=\"60\" x2=\"106\" y2=\"10\"/>" +
+    "<line x1=\"60\" y1=\"60\" x2=\"8\" y2=\"60\"/><line x1=\"60\" y1=\"60\" x2=\"112\" y2=\"60\"/>" +
+    "<line x1=\"60\" y1=\"60\" x2=\"14\" y2=\"110\"/><line x1=\"60\" y1=\"60\" x2=\"106\" y2=\"110\"/></g>" +
+    "<g fill=\"url(#" + uid + "-petal)\" opacity=\"0.9\">" + petals + "</g>" +
+    "<g fill=\"#7fe3c0\" opacity=\"0.85\">" + laurel + "</g>" +
+    "<circle cx=\"60\" cy=\"44\" r=\"27\" fill=\"url(#" + uid + "-disc)\"/>" +
+    "<circle cx=\"60\" cy=\"44\" r=\"27\" fill=\"none\" stroke=\"rgba(255,255,255,0.55)\" stroke-width=\"1.5\"/>" +
+    "<circle cx=\"60\" cy=\"44\" r=\"21\" fill=\"none\" stroke=\"rgba(255,255,255,0.25)\" stroke-width=\"1\"/></svg>";
+}
 function meritBadgeArt(tokenId, level, stamps) {
   const list = Array.isArray(stamps) ? stamps : [];
   const tier = meritTier(level);
@@ -337,7 +366,7 @@ function meritBadgeArt(tokenId, level, stamps) {
   const countLabel = list.length + (list.length === 1 ? " stamp" : " stamps");
   const ring = "MERIT \u2022 NEAR TESTNET \u2022 LEVEL " + (Number(level) || 0) + " \u2022 " + tier.label.toUpperCase() + " TIER \u2022 ";
   return "<div class=\"merit-badge tier-" + tier.key + "\" role=\"img\" aria-label=\"" + escapeHtml(tier.label) + " tier Merit seal, level " + escapeHtml(String(level)) + ", " + escapeHtml(countLabel) + "\">" +
-    "<div class=\"badge-core\">" +
+    "<div class=\"badge-core\">" + badgeHolo(uid) +
     "<div class=\"badge-icon\">" + (hasStamps ? levelEmblem(emblemLevel) : blankEmblem()) + "</div>" +
     "<div class=\"badge-skill\">" + (hasStamps ? "Level " + escapeHtml(String(level)) : "No stamps yet") + "</div>" +
     (pips ? "<div class=\"badge-pips\" aria-hidden=\"true\">" + pips + "</div>" : "") +
