@@ -32,7 +32,7 @@ The Merit takes a small cut of every job it unlocks, paid into its own account. 
 
 ### 3. Hold inventory
 
-The Merit carries its own kit: the specific tools tied to its credentials, held inside the Merit as NFTs. A welder's Merit carries a welding torch. A photographer's Merit carries a camera. The inventory belongs to the job, not to a general bag. Sell the kit and the Merit loses the tools its work depends on.
+The Merit carries its own kit: the specific tools tied to its credentials. A welder's Merit carries a welding torch. A photographer's Merit carries a camera. The inventory belongs to the job, not to a general bag. Each tool is a record in the Merit contract itself, not a separate NFT: an issuer mints a named tool to an account, and the holder deposits it into a Merit they hold. The account keeps owning the tool while it sits inside the Merit, and can take it back out at any time. The kit is the visible proof of what the credential certifies the holder to use. The job gate is the stamp, not the kit: taking a tool out does not close a job the stamps already unlock.
 
 ### 4. Carry credentials
 
@@ -74,20 +74,21 @@ In the demo the jobs are demo jobs posted by demo accounts, and completion is co
 
 ## The demo
 
-The proof, in one flow, all on the testnet. The demo has not run yet; the demo scripts are being written now. The planned flow:
+The proof, in one flow, all on the testnet. The demo ran live on testnet on 2026-11-10 and verified 61 of 61 checks (43 live reads plus 18 receipt checks, `scripts/verify-demo.mjs`, log `merit-demo-log.json`). Every step is a real on chain transaction with a receipt. Nothing is simulated.
 
 1. Mint a blank Merit.
 2. Try to open a paid job and get refused on the chain.
-3. Earn two stamps: one by passing an on chain test, one by DAO attestation.
-4. Deposit kit into the Merit.
-5. Try again and get in. Accept the paid job.
-6. Complete the job and get paid into the Merit's own account, visible on an explorer. On a 2 NEAR job, 1.9 NEAR is withdrawable and 0.1 NEAR stays retained, and the completion stamp is issued.
-7. Withdraw from the Merit's own account to the holder.
-8. Lend the Merit to a second wallet and show the access moving, then expiring.
-9. A short timeout job releases on its own after its deadline on silence, paying the worker and issuing the stamp.
-10. A dispute is resolved by DAO proposal and council vote.
+3. Pass the test and earn the `merit-basics` stamp.
+4. Earn a DAO attestation stamp.
+5. Deposit kit into the Merit: a named Welding torch, the tool for the welding credential.
+6. Try again and get in. Accept the paid job.
+7. The poster confirms completion. Payment lands in the Merit's own account: on a 2 NEAR job, 1.9 NEAR withdrawable and 0.1 NEAR retained, and the completion stamp is issued.
+8. Withdraw from the Merit's own account to the holder.
+9. Lend the Merit to a second wallet and show the access moving, then expiring.
+10. A short timeout job releases on its own after its deadline on silence, paying the worker and issuing the stamp.
+11. A dispute is resolved by DAO proposal and council vote.
 
-Every step is a real on chain transaction with a receipt. Nothing is simulated.
+Outcome: `merit-2` finished level 8 and locked, holding 5 stamps (`merit-basics` 1, `welding` 3, `torch-work` 1, `gate-welding` 1, `repair-welding` 2) and carrying a named Welding torch in its kit. Its subaccount holds 2.65 NEAR, of which 2.375 NEAR is withdrawable and 0.225 NEAR is retained by Merit. That 0.225 NEAR is what the Merit earned by working: 5% of each of the four paid jobs its stamps unlocked, kept in its own account. Four paid jobs totalled 4.5 NEAR. The dispute job was resolved by DAO proposal #0, which passed 2-0 and executed `pay_full` with the `repair-welding` stamp issued.
 
 ## Why it wins
 
@@ -101,7 +102,7 @@ Every step is a real on chain transaction with a receipt. Nothing is simulated.
 
 ## How it is built
 
-Merit is built on NEAR testnet. A Rust contract implements the `NEP-171` NFT standard plus the five behaviours, the lock and the lend. Each token gets its own NEAR sub account, and each sub account runs a tiny wallet contract that only obeys the parent Merit contract. That is how withdrawals work: a contract cannot hold a key, so the wallet contract is the only way the sub account can move money, and it only pays out to whoever the parent says is the current holder. The money really sits in the sub account, visible on an explorer, and the payout really comes from it. A small site lets you mint, view a Merit with its stamps, level, balance and kit, browse gated jobs, and lend. The build follows the same discipline as the other projects in this set: unit tests plus integration tests for every behaviour, a planned live demo on testnet with a verify pass counting live state and receipts, and a README that names the other project.
+Merit is built on NEAR testnet. A Rust contract implements the `NEP-171` NFT standard plus the five behaviours, the lock and the lend. Each token gets its own NEAR sub account, and each sub account runs a tiny wallet contract that only obeys the parent Merit contract. That is how withdrawals work: a contract cannot hold a key, so the wallet contract is the only way the sub account can move money, and it only pays out to whoever the parent says is the current holder. The money really sits in the sub account, visible on an explorer, and the payout really comes from it. A small site lets you mint, view a Merit with its stamps, level, balance and kit, browse gated jobs, and lend. The build follows the same discipline as the other projects in this set: unit tests plus integration tests for every behaviour, a live demo on testnet with a verify pass counting live state and receipts (61 of 61 passed), and a README that names the other project.
 
 ## Lead and status
 

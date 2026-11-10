@@ -20,7 +20,7 @@ The Merit earns by working. Every time its stamps unlock a job, the Merit keeps 
 
 ### 3. Hold inventory
 
-The Merit carries its own kit: the specific tools tied to its credentials, held inside the Merit as NFTs. A welder's Merit carries a welding torch. A photographer's Merit carries a camera. The inventory belongs to the job, not to a general bag. The kit is the visible proof of what the credential certifies the holder to use. The job gate is the stamp, not the kit: removing a tool takes it out of the Merit, but it does not close a job the stamps already unlock. The demo deposits a named Welding torch into merit-2, the tool for its welding credential, and the Merit page shows it by name.
+The Merit carries its own kit: the specific tools tied to its credentials. Each tool is a record in the Merit contract itself, not a separate NFT: an issuer mints a named tool to an account, and the holder deposits it into a Merit they hold. The account keeps owning the tool while it sits inside the Merit, and can take it back out at any time. The kit is the visible proof of what the credential certifies the holder to use. The job gate is the stamp, not the kit: removing a tool takes it out of the Merit, but it does not close a job the stamps already unlock. The demo deposits a named Welding torch into merit-2, the tool for its welding credential, and the Merit page shows it by name.
 
 ### 4. Carry credentials
 
@@ -161,7 +161,7 @@ The demo ran live on testnet on 2026-11-10 and verified 61 of 61 checks (43 live
 2. Try to open a paid job and get refused onchain.
 3. Pass the test and earn the `merit-basics` stamp.
 4. Earn a DAO attestation stamp.
-5. Deposit kit into the Merit: a named Welding torch, the tool for the welding credential, minted as an NFT and held inside merit-2.
+5. Deposit kit into the Merit: a named Welding torch, the tool for the welding credential, recorded in the contract and held inside merit-2.
 6. Accept a paid job, now that the gates open.
 7. The poster confirms completion. Payment lands in the Merit's subaccount: on a 2 NEAR job, 1.9 NEAR withdrawable and 0.1 NEAR retained. The completion stamp is issued.
 8. Withdraw from the subaccount to the holder.
